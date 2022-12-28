@@ -10,7 +10,7 @@ from torchtext import datasets
 import spacy
 
 
-from .constants import BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, DATA_DIR_PATH
+from .constants import BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, DATA_DIR_PATH, MAX_LEN
 
 
 class DatasetType(enum.Enum):
@@ -128,7 +128,7 @@ def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, us
     trg_field_processor = Field(tokenize=trg_tokenizer, init_token=BOS_TOKEN, eos_token=EOS_TOKEN, pad_token=PAD_TOKEN, batch_first=True,fix_length = fix_length)
 
     fields = [('src', src_field_processor), ('trg', trg_field_processor)]
-    MAX_LEN = 100  # filter out examples that have more than MAX_LEN tokens
+    #MAX_LEN = 100  # filter out examples that have more than MAX_LEN tokens
     filter_pred = lambda x: len(x.src) <= MAX_LEN and len(x.trg) <= MAX_LEN
 
     # Only call once the splits function it is super slow as it constantly has to redo the tokenization
@@ -213,22 +213,28 @@ def batch_size_fn(new_example, count, sofar):
 
     num_of_tokens_in_src_tensor = count * longest_src_sentence
     num_of_tokens_in_trg_tensor = count * longest_trg_sentence
-
     return max(num_of_tokens_in_src_tensor, num_of_tokens_in_trg_tensor)
 
 
 # https://github.com/pytorch/text/issues/536#issuecomment-719945594 <- there is a "bug" in BucketIterator i.e. it's
 # description is misleading as it won't group examples of similar length unless you set sort_within_batch to True!
-def get_data_loaders(dataset_path, language_direction, dataset_name, batch_size, device, fix_length = None):
+def get_data_loaders(dataset_path, language_direction, dataset_name, batch_size, device, fix_length = None, batch_size_tokens=True):
     train_dataset, val_dataset, src_field_processor, trg_field_processor = get_datasets_and_vocabs(dataset_path, language_direction, dataset_name == DatasetType.IWSLT.name, fix_length = fix_length)
-
-    train_token_ids_loader, val_token_ids_loader = BucketIterator.splits(
-     datasets=(train_dataset, val_dataset),
-     batch_size=batch_size,
-     device=device,
-     sort_within_batch=True,  # this part is really important otherwise we won't group similar length sentences
-     batch_size_fn=batch_size_fn  # this helps us max out GPU's VRAM
-    )
+    if batch_size_tokens:
+        train_token_ids_loader, val_token_ids_loader = BucketIterator.splits(
+        datasets=(train_dataset, val_dataset),
+        batch_size=batch_size,
+        device=device,
+        sort_within_batch=True,  # this part is really important otherwise we won't group similar length sentences
+        batch_size_fn=batch_size_fn  # this helps us max out GPU's VRAM
+        )
+    else:
+        train_token_ids_loader, val_token_ids_loader = BucketIterator.splits(
+        datasets=(train_dataset, val_dataset),
+        batch_size=batch_size,
+        device=device,
+        sort_within_batch=True,  # this part is really important otherwise we won't group similar length sentences
+        )
 
     return train_token_ids_loader, val_token_ids_loader, src_field_processor, trg_field_processor
 

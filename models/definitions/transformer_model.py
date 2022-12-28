@@ -101,8 +101,6 @@ class Encoder(nn.Module):
         assert isinstance(encoder_layer, EncoderLayer), f'Expected EncoderLayer got {type(encoder_layer)}.'
 
         self.encoder_layers = get_clones(encoder_layer, number_of_layers)
-        for i, layer in enumerate(self.encoder_layers):
-            layer.set_layer_index(i)
         self.norm = nn.LayerNorm(encoder_layer.model_dimension)
 
     def forward(self, src_embeddings_batch, src_mask):
@@ -130,48 +128,58 @@ class EncoderLayer(nn.Module):
         self.multi_headed_attention = multi_headed_attention
         self.pointwise_net = pointwise_net
         self.model_dimension = model_dimension
+        
+        # Fields for saving intermediate values
         self.layer_index = None
         self.batch_count = 0
         self.inputs = None
         self.outputs = None
+        self.save_intermediate = False
+        self.dir_path = None
+        
+    def set_save_intermediate(self, layer_index: int, dir_path: str):
         self.save_intermediate = True
-
-    def set_layer_index(self, index: int):
-        self.layer_index = index
+        self.dir_path = dir_path
+        self.layer_index = layer_index
+        self.batch_count = 0
 
     def forward(self, src_representations_batch, src_mask):
         # Define anonymous (lambda) function which only takes src_representations_batch (srb) as input,
         # this way we have a uniform interface for the sublayer logic.
-        self.batch_count += 1
-        print(f"Layer {self.layer_index}, batch count {self.batch_count}")
+        #print(f"Layer {self.layer_index}, batch count {self.batch_count}")
         encoder_self_attention = lambda srb: self.multi_headed_attention(query=srb, key=srb, value=srb, mask=src_mask)
         # Self-attention MHA sublayer followed by point-wise feed forward net sublayer
-        if self.save_intermediate:
-            self.save_io(src_representations_batch, is_input= True)
+        # if self.save_intermediate:
+        #     self.save_io(src_representations_batch, is_input= True)
+        attention_input = src_representations_batch
         src_representations_batch = self.sublayers[0](src_representations_batch, encoder_self_attention)
-        if self.save_intermediate:
-            self.save_io(src_representations_batch, is_input= False)
+        attention_output = src_representations_batch
+        self.save_io(attention_input, attention_output)
+        
+        # if self.save_intermediate:
+        #     self.save_io(src_representations_batch, is_input= False)
 
         src_representations_batch = self.sublayers[1](src_representations_batch, self.pointwise_net)
 
         return src_representations_batch
 
-    def save_io(self, values, is_input = True):
-        if is_input == True:
-            self.inputs = values.detach() if self.inputs is None else torch.cat([self.inputs, values], dim = 0)
-            print(f"Shape inputs: {self.inputs.shape}")
+    def save_io(self, attention_input, attention_output):
+        attention_input = attention_input.cpu()
+        attention_output = attention_output.cpu()
+        self.inputs = attention_input if self.inputs is None else torch.cat([self.inputs, attention_input], dim = 0)
+        self.outputs = attention_output if self.outputs is None else torch.cat([self.outputs, attention_output], dim = 0)
+        print(f"Shape inputs: {self.inputs.shape}")
 
-            if self.inputs.shape[0] >= FLUSH_SIZE:
-                path = os.path.join(DATA_DIR_PATH, "preprocess", "encoder", f"l{self.layer_index}", f"input-batch-{self.batch_count}")
-                np.save(path, self.inputs.numpy())
-                self.inputs = None
-        else:
-            self.outputs = values.detach() if self.outputs is None else torch.cat([self.outputs, values], dim = 0)
-            print(f"Shape outputs: {self.outputs.shape}")
-            if self.outputs.shape[0] >= FLUSH_SIZE:
-                path = os.path.join(DATA_DIR_PATH, "preprocess", "encoder", f"l{self.layer_index}", f"output-batch-{self.batch_count}")
-                np.save(path, self.outputs.numpy())
-                self.outputs = None
+        if self.inputs.shape[0] >= FLUSH_SIZE:
+            print("Flush")
+            path = os.path.join(self.dir_path, f"input-batch-{self.batch_count}")
+            np.save(path, self.inputs.numpy())
+            self.inputs = None
+    
+            path = os.path.join(self.dir_path, f"output-batch-{self.batch_count}")
+            np.save(path, self.outputs.numpy())
+            self.outputs = None
+            self.batch_count += 1
 #
 # Decoder architecture
 #
