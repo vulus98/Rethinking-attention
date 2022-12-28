@@ -109,7 +109,7 @@ def save_cache(cache_path, dataset):
 #
 
 
-def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, use_caching_mechanism=True):
+def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, use_caching_mechanism=True, fix_length = None):
     german_to_english = language_direction == LanguageDirection.G2E.name
     spacy_de = spacy.load('de_core_news_sm')
     spacy_en = spacy.load('en_core_web_sm')
@@ -124,8 +124,8 @@ def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, us
     # used in  computer vision), namely (B, C, H, W) -> batch size, number of channels, height and width
     src_tokenizer = tokenize_de if german_to_english else tokenize_en
     trg_tokenizer = tokenize_en if german_to_english else tokenize_de
-    src_field_processor = Field(tokenize=src_tokenizer, pad_token=PAD_TOKEN, batch_first=True)
-    trg_field_processor = Field(tokenize=trg_tokenizer, init_token=BOS_TOKEN, eos_token=EOS_TOKEN, pad_token=PAD_TOKEN, batch_first=True)
+    src_field_processor = Field(tokenize=src_tokenizer, pad_token=PAD_TOKEN, batch_first=True, fix_length = fix_length)
+    trg_field_processor = Field(tokenize=trg_tokenizer, init_token=BOS_TOKEN, eos_token=EOS_TOKEN, pad_token=PAD_TOKEN, batch_first=True,fix_length = fix_length)
 
     fields = [('src', src_field_processor), ('trg', trg_field_processor)]
     MAX_LEN = 100  # filter out examples that have more than MAX_LEN tokens
@@ -219,8 +219,8 @@ def batch_size_fn(new_example, count, sofar):
 
 # https://github.com/pytorch/text/issues/536#issuecomment-719945594 <- there is a "bug" in BucketIterator i.e. it's
 # description is misleading as it won't group examples of similar length unless you set sort_within_batch to True!
-def get_data_loaders(dataset_path, language_direction, dataset_name, batch_size, device):
-    train_dataset, val_dataset, src_field_processor, trg_field_processor = get_datasets_and_vocabs(dataset_path, language_direction, dataset_name == DatasetType.IWSLT.name)
+def get_data_loaders(dataset_path, language_direction, dataset_name, batch_size, device, fix_length = None):
+    train_dataset, val_dataset, src_field_processor, trg_field_processor = get_datasets_and_vocabs(dataset_path, language_direction, dataset_name == DatasetType.IWSLT.name, fix_length = fix_length)
 
     train_token_ids_loader, val_token_ids_loader = BucketIterator.splits(
      datasets=(train_dataset, val_dataset),
