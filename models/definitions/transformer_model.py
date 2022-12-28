@@ -17,6 +17,7 @@ import copy
 
 
 import torch
+import numpy as np
 import torch.nn as nn
 
 
@@ -100,6 +101,8 @@ class Encoder(nn.Module):
         assert isinstance(encoder_layer, EncoderLayer), f'Expected EncoderLayer got {type(encoder_layer)}.'
 
         self.encoder_layers = get_clones(encoder_layer, number_of_layers)
+        for i, layer in enumerate(self.encoder_layers):
+            layer.set_layer_index(i)
         self.norm = nn.LayerNorm(encoder_layer.model_dimension)
 
     def forward(self, src_embeddings_batch, src_mask):
@@ -126,21 +129,49 @@ class EncoderLayer(nn.Module):
 
         self.multi_headed_attention = multi_headed_attention
         self.pointwise_net = pointwise_net
-
         self.model_dimension = model_dimension
+        self.layer_index = None
+        self.batch_count = 0
+        self.inputs = None
+        self.outputs = None
+        self.save_intermediate = True
+
+    def set_layer_index(self, index: int):
+        self.layer_index = index
 
     def forward(self, src_representations_batch, src_mask):
         # Define anonymous (lambda) function which only takes src_representations_batch (srb) as input,
         # this way we have a uniform interface for the sublayer logic.
+        self.batch_count += 1
+        print(f"Layer {self.layer_index}, batch count {self.batch_count}")
         encoder_self_attention = lambda srb: self.multi_headed_attention(query=srb, key=srb, value=srb, mask=src_mask)
-
         # Self-attention MHA sublayer followed by point-wise feed forward net sublayer
+        if self.save_intermediate:
+            self.save_io(src_representations_batch, is_input= True)
         src_representations_batch = self.sublayers[0](src_representations_batch, encoder_self_attention)
+        if self.save_intermediate:
+            self.save_io(src_representations_batch, is_input= False)
+
         src_representations_batch = self.sublayers[1](src_representations_batch, self.pointwise_net)
 
         return src_representations_batch
 
+    def save_io(self, values, is_input = True):
+        if is_input == True:
+            self.inputs = values.detach() if self.inputs is None else torch.cat([self.inputs, values], dim = 0)
+            print(f"Shape inputs: {self.inputs.shape}")
 
+            if self.inputs.shape[0] >= FLUSH_SIZE:
+                path = os.path.join(DATA_DIR_PATH, "preprocess", "encoder", f"l{self.layer_index}", f"input-batch-{self.batch_count}")
+                np.save(path, self.inputs.numpy())
+                self.inputs = None
+        else:
+            self.outputs = values.detach() if self.outputs is None else torch.cat([self.outputs, values], dim = 0)
+            print(f"Shape outputs: {self.outputs.shape}")
+            if self.outputs.shape[0] >= FLUSH_SIZE:
+                path = os.path.join(DATA_DIR_PATH, "preprocess", "encoder", f"l{self.layer_index}", f"output-batch-{self.batch_count}")
+                np.save(path, self.outputs.numpy())
+                self.outputs = None
 #
 # Decoder architecture
 #
