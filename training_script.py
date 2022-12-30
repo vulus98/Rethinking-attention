@@ -13,7 +13,7 @@ import time
 import torch
 from torch import nn
 from torch.optim import Adam
-from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
 
 
 from utils.optimizers_and_distributions import CustomLRAdamOptimizer, LabelSmoothingDistribution
@@ -86,7 +86,7 @@ def get_train_val_loop(baseline_transformer, custom_lr_optimizer, kl_div_loss, l
                 # Save model checkpoint
                 if training_config['checkpoint_freq'] is not None and (epoch + 1) % training_config['checkpoint_freq'] == 0 and batch_idx == 0:
                     ckpt_model_name = f"transformer_ckpt_epoch_{epoch + 1}.pth"
-                    torch.save(utils.get_training_state(training_config, baseline_transformer), os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
+                    torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
             else:
                 global_val_step += 1
 
@@ -128,18 +128,38 @@ def train_transformer(training_config):
     # My feeling is that this is a really dummy and arbitrary heuristic but time will tell.
     label_smoothing = LabelSmoothingDistribution(BASELINE_MODEL_LABEL_SMOOTHING_VALUE, pad_token_id, trg_vocab_size, device)
 
+    # Make resuming the training possible
+    steps_taken = 0
+    if (training_config['start_point']):
+        ckpt_model_name = f"transformer_ckpt_epoch_{training_config['start_point']}.pth"
+        path = os.path.join(CHECKPOINTS_PATH, ckpt_model_name)
+        print(f"Trying to resume training from starting point {path}.")
+        if (not os.path.exists(path)):
+            print(f"Requested starting point {path} does not exist.")
+            return
+        else:
+            training_state = torch.load(path)
+            assert(training_config['dataset_name'] == training_state['dataset_name'])
+            assert(training_config['language_direction'] == training_state['language_direction'])
+            baseline_transformer.load_state_dict(training_state['state_dict'])
+            steps_taken = training_state['steps_taken']
+            print("Loaded state dict, resuming training")
+
+
+
     # Check out playground.py for an intuitive visualization of how the LR changes with time/training steps, easy stuff.
     custom_lr_optimizer = CustomLRAdamOptimizer(
                 Adam(baseline_transformer.parameters(), betas=(0.9, 0.98), eps=1e-9),
                 BASELINE_MODEL_DIMENSION,
-                training_config['num_warmup_steps']
+                training_config['num_warmup_steps'],
+                steps_taken
             )
 
     # The decorator function makes things cleaner since there is a lot of redundancy between the train and val loops
     train_val_loop = get_train_val_loop(baseline_transformer, custom_lr_optimizer, kl_div_loss, label_smoothing, pad_token_id, time.time())
 
     # Step 4: Start the training
-    for epoch in range(training_config['num_of_epochs']):
+    for epoch in range(training_config['start_point'], training_config['num_of_epochs']):
         # Training loop
         train_val_loop(is_train=True, token_ids_loader=train_token_ids_loader, epoch=epoch)
 
@@ -152,7 +172,7 @@ def train_transformer(training_config):
                 writer.add_scalar('bleu_score', bleu_score, epoch)
 
     # Save the latest transformer in the binaries directory
-    torch.save(utils.get_training_state(training_config, baseline_transformer), os.path.join(BINARIES_PATH, utils.get_available_binary_name()))
+    torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(BINARIES_PATH, utils.get_available_binary_name()))
 
 
 if __name__ == "__main__":
@@ -180,6 +200,7 @@ if __name__ == "__main__":
     parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=True)
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
     parser.add_argument("--checkpoint_freq", type=int, help="checkpoint model saving (epoch) freq", default=1)
+    parser.add_argument("--start_point", type=int, help="checkpoint model (epoch) where to resume training from", default=0)
     args = parser.parse_args()
 
     # Wrapping training configuration into a dictionary
