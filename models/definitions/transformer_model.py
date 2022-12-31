@@ -149,15 +149,11 @@ class EncoderLayer(nn.Module):
         #print(f"Layer {self.layer_index}, batch count {self.batch_count}")
         encoder_self_attention = lambda srb: self.multi_headed_attention(query=srb, key=srb, value=srb, mask=src_mask)
         # Self-attention MHA sublayer followed by point-wise feed forward net sublayer
-        # if self.save_intermediate:
-        #     self.save_io(src_representations_batch, is_input= True)
         attention_input = src_representations_batch
         src_representations_batch = self.sublayers[0](src_representations_batch, encoder_self_attention)
         attention_output = src_representations_batch
-        self.save_io(attention_input, attention_output)
-        
-        # if self.save_intermediate:
-        #     self.save_io(src_representations_batch, is_input= False)
+        if self.save_intermediate:
+            self.save_io(attention_input, attention_output)
 
         src_representations_batch = self.sublayers[1](src_representations_batch, self.pointwise_net)
 
