@@ -13,6 +13,7 @@ import os
 import torch
 from torch import nn
 from torch.optim import Adam
+import numpy as np
 
 
 from models.definitions.transformer_model import Transformer
@@ -38,31 +39,42 @@ num_of_trg_tokens_processed = 0
 bleu_scores = []
 global_train_step, global_val_step = [0, 0]
 writer = SummaryWriter()  # (tensorboard) writer will output to ./runs/ directory by default
-
 PREPROCESS_DIR_PATH = os.environ["SCRATCH"]
 
 # Simple decorator function so that I don't have to pass these arguments every time I call get_train_val_loop
 def get_eval_loop(baseline_transformer, label_smoothing, pad_token_id, time_start):
 
-    def eval_loop(token_ids_loader):
+    def eval_loop(token_ids_loader, mask_output_path):
     
         global num_of_trg_tokens_processed, global_train_step, global_val_step, writer
         device = next(baseline_transformer.parameters()).device
+        src_mask_accumulator = None
+        output_batch_count = 0
         #
         # Main loop - start of the CORE PART
         #
         for batch_idx, token_ids_batch in enumerate(token_ids_loader):
             src_token_ids_batch, trg_token_ids_batch_input, trg_token_ids_batch_gt = get_src_and_trg_batches(token_ids_batch)
             src_mask, trg_mask, num_src_tokens, num_trg_tokens = get_masks_and_count_tokens(src_token_ids_batch, trg_token_ids_batch_input, pad_token_id, device)
-
             # log because the KL loss expects log probabilities (just an implementation detail)
             predicted_log_distributions = baseline_transformer(src_token_ids_batch, trg_token_ids_batch_input, src_mask, trg_mask)
             smooth_target_distributions = label_smoothing(trg_token_ids_batch_gt)  # these are regular probabilities
+            
+            # Save masks
+            src_mask = src_mask.cpu()
+            src_mask_accumulator = src_mask if src_mask_accumulator is None else torch.cat([src_mask_accumulator, src_mask], dim = 0)
+            if src_mask_accumulator.shape[0] >= FLUSH_SIZE:
+                print(src_mask_accumulator.shape)
+                print(src_mask_accumulator.squeeze().numpy().shape)
+                np.save(os.path.join(mask_output_path, f"mask-batch-{output_batch_count}"), src_mask_accumulator.squeeze().numpy())
+                src_mask_accumulator = None
+                output_batch_count += 1
+
             if batch_idx % 100 == 0:
                 print(f"batch: {batch_idx}")
     return eval_loop
 
-
+    
 def train_transformer(preprocess_config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
     # Step 1: Prepare data loaders
@@ -111,16 +123,21 @@ def train_transformer(preprocess_config):
     with torch.no_grad():
         # Set parameters to save intermediate results for test set
         for layer_index, l in enumerate(baseline_transformer.encoder.encoder_layers):
-            dir_path =  os.path.join(PREPROCESS_DIR_PATH, "encoder","test", f"l{layer_index}")
+            dir_path =  os.path.join(PREPROCESS_DIR_PATH, "encoder","train", f"l{layer_index}")
             os.makedirs(dir_path, exist_ok = True)
             l.set_save_intermediate(layer_index, dir_path)
-        train_val_loop(token_ids_loader=train_token_ids_loader)
+        mask_path = os.path.join(PREPROCESS_DIR_PATH, "encoder","train","src_mask")
+        os.makedirs(mask_path, exist_ok = True)
+        train_val_loop(token_ids_loader=train_token_ids_loader, mask_output_path = mask_path)
+        
         # Set parameters to save intermediate results for test set
         for layer_index, l in enumerate(baseline_transformer.encoder.encoder_layers):
             dir_path =  os.path.join(PREPROCESS_DIR_PATH, "encoder", "val", f"l{layer_index}")
             os.makedirs(dir_path, exist_ok = True)
             l.set_save_intermediate(layer_index, dir_path)
-        train_val_loop(token_ids_loader=val_token_ids_loader)
+        mask_path = os.path.join(PREPROCESS_DIR_PATH, "encoder","val","src_mask")
+        os.makedirs(mask_path, exist_ok = True)
+        train_val_loop(token_ids_loader=val_token_ids_loader, mask_output_path = mask_path)
 
       
 
