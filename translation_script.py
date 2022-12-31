@@ -81,7 +81,7 @@ if __name__ == "__main__":
     # modifiable args - feel free to play with these (only small subset is exposed by design to avoid cluttering)
     #
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source_sentence", type=str, help="source sentence to translate into target", default="How are you doing today?")
+    parser.add_argument("--source_sentence", type=str, help="source sentence to translate into target", default="I love you.")
     parser.add_argument("--model_name", type=str, help="transformer model name", default=r'iwslt_e2g.pth')
 
     # Keep these 2 in sync with the model you pick via model_name

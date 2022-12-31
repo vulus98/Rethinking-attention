@@ -23,6 +23,7 @@ import utils.utils as utils
 from utils.constants import *
 
 
+
 # Global vars for logging purposes
 num_of_trg_tokens_processed = 0
 bleu_scores = []
@@ -120,7 +121,7 @@ def train_transformer(training_config):
         number_of_layers=BASELINE_MODEL_NUMBER_OF_LAYERS,
         dropout_probability=BASELINE_MODEL_DROPOUT_PROB
     ).to(device)
-
+    #baseline_transformer=torch.nn.DataParallel(baseline_transformer,device_ids=list(range(4)))
     # Step 3: Prepare other training related utilities
     kl_div_loss = nn.KLDivLoss(reduction='batchmean')  # gives better BLEU score than "mean"
 
@@ -160,8 +161,6 @@ if __name__ == "__main__":
     # Fixed args - don't change these unless you have a good reason
     #
     num_warmup_steps = 4000
-
-    #
     # Modifiable args - feel free to play with these (only small subset is exposed by design to avoid cluttering)
     #
     parser = argparse.ArgumentParser()
@@ -181,7 +180,6 @@ if __name__ == "__main__":
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
     parser.add_argument("--checkpoint_freq", type=int, help="checkpoint model saving (epoch) freq", default=1)
     args = parser.parse_args()
-
     # Wrapping training configuration into a dictionary
     training_config = dict()
     for arg in vars(args):
