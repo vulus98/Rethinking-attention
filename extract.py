@@ -1,6 +1,6 @@
 import argparse
 import time
-import pickle
+import numpy as np
 
 
 import torch
@@ -44,14 +44,16 @@ def extract_input_output(training_config):
 
     def getf(i, is_train=True):
         def write_input_output(model, input, output):
-            inp = input[0].detach()
-            out = output.detach()
+            # input is a tuple with a function as the second part
+            inp = input[0].cpu().detach().numpy()
+            out = output.cpu().detach().numpy()
             in_filename = f"{LAYER_OUTPUT_PATH}/{training_config['model_name']}_layer{i}_inputs_{'train' if is_train else 'val'}"
             out_filename = f"{LAYER_OUTPUT_PATH}/{training_config['model_name']}_layer{i}_outputs_{'train' if is_train else 'val'}"
+            # ad-hoc appending to the same file
             with open(in_filename, 'ab') as f:
-                pickle.dump(inp, f)
+                np.save(f, inp)
             with open(out_filename, 'ab') as f:
-                pickle.dump(out, f)
+                np.save(f, out)
         return write_input_output
 
     # extract train dataset activations
@@ -61,6 +63,7 @@ def extract_input_output(training_config):
         hook_handles.append(h)
 
     for batch_idx, token_ids_batch in enumerate(train_token_ids_loader):
+        print(batch_idx)
         src_token_ids_batch, trg_token_ids_batch_input, trg_token_ids_batch_gt = get_src_and_trg_batches(token_ids_batch)
         src_mask, trg_mask, num_src_tokens, num_trg_tokens = get_masks_and_count_tokens(src_token_ids_batch, trg_token_ids_batch_input, pad_token_id, device)
         transformer.encode(src_token_ids_batch, src_mask)
@@ -75,9 +78,10 @@ def extract_input_output(training_config):
         hook_handles.append(h)
 
     for batch_idx, token_ids_batch in enumerate(val_token_ids_loader):
+        print(batch_idx)
         src_token_ids_batch, trg_token_ids_batch_input, trg_token_ids_batch_gt = get_src_and_trg_batches(token_ids_batch)
         src_mask, trg_mask, num_src_tokens, num_trg_tokens = get_masks_and_count_tokens(src_token_ids_batch, trg_token_ids_batch_input, pad_token_id, device)
-        transformer.encoder(src_token_ids_batch, src_mask)
+        transformer.encode(src_token_ids_batch, src_mask)
 
 if __name__ == "__main__":
     #
