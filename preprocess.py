@@ -57,8 +57,8 @@ def get_eval_loop(baseline_transformer, label_smoothing, pad_token_id, time_star
             src_token_ids_batch, trg_token_ids_batch_input, trg_token_ids_batch_gt = get_src_and_trg_batches(token_ids_batch)
             src_mask, trg_mask, num_src_tokens, num_trg_tokens = get_masks_and_count_tokens(src_token_ids_batch, trg_token_ids_batch_input, pad_token_id, device)
             # log because the KL loss expects log probabilities (just an implementation detail)
-            predicted_log_distributions = baseline_transformer(src_token_ids_batch, trg_token_ids_batch_input, src_mask, trg_mask)
-            smooth_target_distributions = label_smoothing(trg_token_ids_batch_gt)  # these are regular probabilities
+#            predicted_log_distributions = baseline_transformer(src_token_ids_batch, trg_token_ids_batch_input, src_mask, trg_mask)
+#            smooth_target_distributions = label_smoothing(trg_token_ids_batch_gt)  # these are regular probabilities
             
             # Save masks
             src_mask = src_mask.cpu()
@@ -111,7 +111,7 @@ def train_transformer(preprocess_config):
 
     baseline_transformer.load_state_dict(model_state["state_dict"], strict=True)
     baseline_transformer.eval()
-    
+      
     # Makes smooth target distributions as opposed to conventional one-hot distributions
     # My feeling is that this is a really dummy and arbitrary heuristic but time will tell.
     label_smoothing = LabelSmoothingDistribution(BASELINE_MODEL_LABEL_SMOOTHING_VALUE, pad_token_id, trg_vocab_size, device)
