@@ -145,8 +145,6 @@ def train_transformer(training_config):
             steps_taken = training_state['steps_taken']
             print("Loaded state dict, resuming training")
 
-
-
     # Check out playground.py for an intuitive visualization of how the LR changes with time/training steps, easy stuff.
     custom_lr_optimizer = CustomLRAdamOptimizer(
                 Adam(baseline_transformer.parameters(), betas=(0.9, 0.98), eps=1e-9),
