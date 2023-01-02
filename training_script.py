@@ -100,7 +100,7 @@ def train_transformer(training_config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
 
     # Step 1: Prepare data loaders
-    train_token_ids_loader, val_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
+    train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
         training_config['dataset_path'],
         training_config['language_direction'],
         training_config['dataset_name'],
