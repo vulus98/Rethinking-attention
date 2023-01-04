@@ -120,13 +120,21 @@ class SingleWordsInterResultsDataset(torch.utils.data.Dataset):
                 m = torch.squeeze(m, dim=1)
                 m = torch.squeeze(m, dim=1)
                 o = torch.from_numpy(np.load(outf))
+                assert(not torch.any(torch.isnan(i)))
+                assert(not torch.any(torch.isnan(o)))
+                assert(not torch.any(torch.isnan(m)))
                 l = torch.sum(m, dim = 1)
                 for j, s in enumerate(i):
                     # get sentence length from mask
                     s_sum = torch.sum(s[:l[j]], dim=0)
                     for k, w in enumerate(s[:l[j]]):
                         # average of the rest of the sentence
-                        avg = (s_sum-w)/(l[j]-1)
+                        # to catch division by zero
+                        if (l[j]-1 == 0):
+                            avg = torch.zeros_like(s_sum)
+                        else:
+                            avg = (s_sum-w)/(l[j]-1)
+                        assert(not torch.any(torch.isnan(avg)))
                         e = torch.cat([w, avg], dim=0)
                         self.input.append(e)
                         self.output.append(o[j, k])
@@ -215,7 +223,7 @@ def train(training_config):
             loss.backward()
             optimizer.step()
             if training_config['console_log_freq'] is not None and batch_idx % training_config['console_log_freq'] == 0:
-                print(f'Simulator training: time elapsed= {(time.time() - time_start):.2f} [s] '
+                print(f'Simulator training: time elapsed={(time.time() - time_start):.2f} [s] '
                       f'| epoch={epoch + 1} | batch={batch_idx} '
                       f'| training_loss: {loss.item()}')
 
@@ -236,7 +244,7 @@ def train(training_config):
         # Save model checkpoint
         if training_config['checkpoint_freq'] is not None and (epoch + 1) % training_config['checkpoint_freq'] == 0:
             ckpt_model_name = f"{model.name}_ckpt_epoch_{epoch + 1}.pth"
-            torch.save(model.parameters(), os.path.join(SCRATCH, ckpt_model_name))
+            torch.save(model.state_dict(), os.path.join(SCRATCH, ckpt_model_name))
 
 if __name__ == "__main__":
     num_warmup_steps = 4000
@@ -246,7 +254,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, help="target number of tokens in a src/trg batch", default=1500)
 
     # Logging/debugging/checkpoint related (helps a lot with experimentation)
-    parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
+    parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=50)
     parser.add_argument("--checkpoint_freq", type=int, help="checkpoint model saving (epoch) freq", default=1)
     parser.add_argument("--train_input", type=str, help="path to the training inputs", required=True)
     parser.add_argument("--train_output", type=str, help="path to the training outputs", required=True)
