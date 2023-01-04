@@ -16,10 +16,11 @@ BIG_MODEL_DROPOUT_PROB = 0.3
 BIG_MODEL_LABEL_SMOOTHING_VALUE = 0.1
 
 
+SCRATCH = os.environ.get('SCRATCH')
 CHECKPOINTS_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'checkpoints')
 BINARIES_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'binaries')
 DATA_DIR_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'data')
-LAYER_OUTPUT_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'layer_outputs')
+LAYER_OUTPUT_PATH = os.path.join(SCRATCH, "layer_outputs")
 os.makedirs(CHECKPOINTS_PATH, exist_ok=True)
 os.makedirs(BINARIES_PATH, exist_ok=True)
 os.makedirs(DATA_DIR_PATH, exist_ok=True)

@@ -10,7 +10,6 @@ from torch.optim import Adam
 from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 
-from utils.optimizers_and_distributions import CustomLRAdamOptimizer
 import utils.utils as utils
 from utils.constants import *
 
@@ -85,8 +84,8 @@ class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         # if we have exactly the same length, there is no need for padding/masking
         if self.t == "exact":
-            return tuple(self.input[idx], self.output[idx])
-        return tuple(self.input[idx], self.output[idx], self.mask[idx])
+            return (self.input[idx], self.output[idx])
+        return (self.input[idx], self.output[idx], self.mask[idx])
 
     def emb_size(self):
         return self.input.shape[1]
@@ -152,31 +151,98 @@ class SingleWordsInterResultsDataset(torch.utils.data.Dataset):
         return self.input.shape[0]
 
     def __getitem__(self, idx):
-        return tuple(self.input[idx], self.output[idx])
+        return (self.input[idx], self.output[idx])
 
     def emb_size(self):
         return self.input.shape[1]
 
+class AttentionSimulator(nn.Module):
+    def __init__(self, model_dimension, nr_layers, nr_units):
+        super(AttentionSimulator, self).__init__()
+        layers = []
+        assert(nr_layers >= 1)
+        if (nr_layers == 1):
+            layers.append(nn.Sequential(nn.Linear(2*model_dimension, model_dimension), nn.ReLU()))
+        elif isinstance(nr_units, int):
+            layers.append(nn.Sequential(nn.Linear(2*model_dimension, nr_units), nn.ReLU()))
+            for i in range(1, nr_layers-1):
+                layers.append(nn.Sequential(nn.Linear(nr_units, nr_units), nn.ReLU()))
+            layers.append(nn.Sequential(nn.Linear(nr_units, model_dimension), nn.ReLU()))
+        else:
+            assert(len(nr_units)+1 == nr_layers)
+            layers.append(nn.Sequential(nn.Linear(2*model_dimension, nr_units[0]), nn.ReLU()))
+            for i in range(1, nr_layers-1):
+                layers.append(nn.Sequential(nn.Linear(nr_units[i-1], nr_units[i]), nn.ReLU()))
+            layers.append(nn.Sequential(nn.Linear(nr_units[-1], model_dimension), nn.ReLU()))
+        self.sequential = nn.Sequential(*layers)
+        self.name = f"{nr_layers}_{nr_units}".replace(" ", "")
+
+    def forward(self, x):
+        return self.sequential(x)
+
 
 def train(training_config):
+    time_start = time.time()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
-    #val_data_set = SingleWordsInterResultsDataset(training_config["val_input"], training_config["val_output"], training_config["val_mask"])
-    #val_loader = DataLoader(val_data_set, batch_size = training_config["batch_size"])
-    #train_data_set = SingleWordsInterResultsDataset(training_config["train_input"], training_config["train_output"], training_config["train_mask"])
-    #train_loader = DataLoader(train_data_set, batch_size = training_config["batch_size"])
-    val_data_set = FixedWordsInterResultsDataset(training_config["val_input"], training_config["val_output"], training_config["val_mask"], 50, "max")
+    val_data_set = SingleWordsInterResultsDataset(training_config["val_input"], training_config["val_output"], training_config["val_mask"])
     val_loader = DataLoader(val_data_set, batch_size = training_config["batch_size"])
-    train_data_set = FixedWordsInterResultsDataset(training_config["train_input"], training_config["train_output"], training_config["train_mask"], 50, "max")
+    train_data_set = SingleWordsInterResultsDataset(training_config["train_input"], training_config["train_output"], training_config["train_mask"])
     train_loader = DataLoader(train_data_set, batch_size = training_config["batch_size"])
+    #val_data_set = FixedWordsInterResultsDataset(training_config["val_input"], training_config["val_output"], training_config["val_mask"], 50, "max")
+    #val_loader = DataLoader(val_data_set, batch_size = training_config["batch_size"])
+    #train_data_set = FixedWordsInterResultsDataset(training_config["train_input"], training_config["train_output"], training_config["train_mask"], 50, "max")
+    #train_loader = DataLoader(train_data_set, batch_size = training_config["batch_size"])
 #    for n_layers in range(1, 5):
 #        for n_units in [2**i for i in range(0, 12-n_layers)]:
 #            print(n_layers, n_units, n_layers*n_units)
-#
+    model = AttentionSimulator(128, 3, 128).to(device)
+    criterion = nn.MSELoss()
+    optimizer = Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-9)
+    for epoch in range(training_config['num_of_epochs']):
+        # Training loop
+        model.train()
+
+        for batch_idx, batch_data in enumerate(train_loader):
+            inputs, labels = batch_data
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            optimizer.zero_grad()
+
+            outputs = model(inputs)
+
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            if training_config['console_log_freq'] is not None and batch_idx % training_config['console_log_freq'] == 0:
+                print(f'Simulator training: time elapsed= {(time.time() - time_start):.2f} [s] '
+                      f'| epoch={epoch + 1} | batch={batch_idx} '
+                      f'| training_loss: {loss.item()}')
+
+        # Validation loop
+        with torch.no_grad():
+            model.eval()
+            losses = []
+            for batch_idx, batch_data in enumerate(val_loader):
+                inputs, labels = batch_data
+                inputs = inputs.to(device)
+                labels = labels.to(device)
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+                losses.append(loss)
+            losses = torch.stack(losses)
+            print(f'Simulator validation loss epoch {epoch+1}: training_loss: {torch.mean(losses)}')
+
+        # Save model checkpoint
+        if training_config['checkpoint_freq'] is not None and (epoch + 1) % training_config['checkpoint_freq'] == 0:
+            ckpt_model_name = f"{model.name}_ckpt_epoch_{epoch + 1}.pth"
+            torch.save(model.parameters(), os.path.join(SCRATCH, ckpt_model_name))
 
 if __name__ == "__main__":
     num_warmup_steps = 4000
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=20)
     parser.add_argument("--batch_size", type=int, help="target number of tokens in a src/trg batch", default=1500)
 
     # Logging/debugging/checkpoint related (helps a lot with experimentation)
@@ -194,6 +260,5 @@ if __name__ == "__main__":
     training_config = dict()
     for arg in vars(args):
         training_config[arg] = getattr(args, arg)
-    training_config['num_warmup_steps'] = num_warmup_steps
 
     train(training_config)
