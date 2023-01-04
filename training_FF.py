@@ -24,16 +24,15 @@ class FFDataset(Dataset):
         return len(self.data)
 
 class FFNetwork(nn.ModuleList):
-    def __init__(self, model_dimension=128,sentence_length=100,depth=6):
+    def __init__(self, model_dimension=128,sentence_length=50):
         super(FFNetwork, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
-        self.depth=depth
         self.width=self.sentence_length*self.model_dimension
         self.layers=list()
-        widths=[1,2,8,32,8,2,1]
-        self.layers = nn.ModuleList([nn.Linear(self.width//widths[i], self.width//widths[i+1]) for i in range(depth)])
-
+        widths=[1,1,2,8,16,32,16,8,2,1,1]
+        self.depth=len(widths)-1
+        self.layers = nn.ModuleList([nn.Linear(self.width//widths[i//2], self.width//widths[i//2+1]) if i%2==0 else nn.ReLU() for i in range(2*self.depth-1)])
     def forward(self,data,mask):
         for layer in self.layers:
             data=layer(data)
@@ -41,10 +40,11 @@ class FFNetwork(nn.ModuleList):
     
     def init_weights(self):
         for layer in self.layers:
-            nn.init.uniform_(layer.weight)
-            layer.bias.data.fill_(0.01)
+            if(layer==nn.Linear):
+                nn.init.uniform_(layer.weight)
+                layer.bias.data.fill_(0.01)
 
-def prepare_data(dataset_path,num_of_loaded_files=10,chosen_layer=0):
+def prepare_data(dataset_path,num_of_loaded_files=10,chosen_layer=0,batch_size=5):
     data_label_path=os.path.join(dataset_path,"l{0}".format(chosen_layer))
     mask_path=os.path.join(dataset_path,"src_mask")
     whole_data_set=None
@@ -54,14 +54,14 @@ def prepare_data(dataset_path,num_of_loaded_files=10,chosen_layer=0):
     for i in range(num_of_loaded_files):
         print("Loading batch {0}".format(i))
 
-        new_data_batch=np.load(os.path.join(data_label_path,'input-batch-{0}.npy'.format(i)))
+        new_data_batch=np.load(os.path.join(data_label_path,'input-batch-{0}.npy'.format(i)))[:,:50,:]
         model_dimension=new_data_batch.shape[2]
         new_data_batch=np.reshape(new_data_batch,newshape=(new_data_batch.shape[0],new_data_batch.shape[1]*new_data_batch.shape[2]))
         
-        new_masks_batch=np.load(os.path.join(mask_path,'mask-batch-{0}.npy'.format(i)))
+        new_masks_batch=np.load(os.path.join(mask_path,'mask-batch-{0}.npy'.format(i)))[:,:50]
         new_masks_batch=np.repeat(new_masks_batch,model_dimension,axis=1)
         
-        new_labels_batch=np.load(os.path.join(data_label_path,'output-batch-{0}.npy'.format(i)))
+        new_labels_batch=np.load(os.path.join(data_label_path,'output-batch-{0}.npy'.format(i)))[:,:50,:]
         new_labels_batch=np.reshape(new_labels_batch,newshape=(new_labels_batch.shape[0],new_labels_batch.shape[1]*model_dimension))
 
         new_data_batch=new_data_batch*new_masks_batch
@@ -77,16 +77,17 @@ def prepare_data(dataset_path,num_of_loaded_files=10,chosen_layer=0):
 
 
     dataset=FFDataset(whole_data_set,whole_masks_set,whole_labels_set)
-    data_loader = DataLoader(dataset, batch_size=5)
+    data_loader = DataLoader(dataset, batch_size)
     return data_loader
 
 def training_replacement_FF(params):
     model=FFNetwork().to(device)
-    model.init_weights()
+    #model.init_weights()
+    model.train(True)
     print("FF model created")
-    lr_optimizer = Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-9)
+    lr_optimizer = Adam(model.parameters(), lr=0.001,betas=(0.9, 0.98), eps=1e-9)
     print("Preparing data")
-    data_loader=prepare_data(params['dataset_path'], params['num_of_loaded_files'], params['num_of_curr_trained_layer'])
+    data_loader=prepare_data(params['dataset_path'], params['num_of_loaded_files'], params['num_of_curr_trained_layer'],params["batch_size"])
     mse_loss=nn.MSELoss()
     for epoch in range(params['num_of_epochs']):
         print("Epoch: ",epoch)
@@ -103,21 +104,13 @@ def training_replacement_FF(params):
         print("Loss: ",epoch_loss)
 
 if __name__ == "__main__":
-    #
-    # Fixed args - don't change these unless you have a good reason
-    #
-
-    #
-    # Modifiable args - feel free to play with these (only small subset is exposed by design to avoid cluttering)
-    #
     parser = argparse.ArgumentParser()
-    # According to the paper I infered that the baseline was trained for ~19 epochs on the WMT-14 dataset and I got
-    # nice returns up to epoch ~20 on IWSLT as well (nice round number)
     parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=20)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_PATH)
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
-    parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=10)
+    parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=20)
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
+    parser.add_argument("--batch_size", type=str, help='batch_size', default=50)
     args = parser.parse_args()
 
     # Wrapping training configuration into a dictionary
@@ -125,5 +118,5 @@ if __name__ == "__main__":
     for arg in vars(args):
         training_config[arg] = getattr(args, arg)
     print("Training arguments parsed")
-    # Train the original transformer model
+
     training_replacement_FF(training_config)
