@@ -30,3 +30,4 @@ os.makedirs(LAYER_OUTPUT_PATH, exist_ok=True)
 BOS_TOKEN = '<s>'
 EOS_TOKEN = '</s>'
 PAD_TOKEN = "<pad>"
+MAX_LEN = 50
