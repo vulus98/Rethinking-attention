@@ -19,6 +19,7 @@ CHECKPOINTS_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 
 BINARIES_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'binaries')
 DATA_DIR_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'data')
 PREPROCESS_DIR_PATH = os.path.join(DATA_DIR_PATH, "preprocess")
+SCRATCH_PATH = os.environ["SCRATCH"]
 os.makedirs(CHECKPOINTS_PATH, exist_ok=True)
 os.makedirs(BINARIES_PATH, exist_ok=True)
 os.makedirs(DATA_DIR_PATH, exist_ok=True)
