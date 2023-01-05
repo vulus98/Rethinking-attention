@@ -30,9 +30,14 @@ class FFNetwork(nn.ModuleList):
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
         self.layers=list()
-        widths=[1,1,2,8,16,32,16,8,2,1,1]
+        widths=[1,1,2,4,4,2,1,1]
         self.depth=len(widths)-1
-        self.layers = nn.ModuleList([nn.Linear(self.width//widths[i//2], self.width//widths[i//2+1]) if i%2==0 else nn.ReLU() for i in range(2*self.depth-1)])
+        self.layers = nn.ModuleList()
+        for i in range(self.depth):
+            self.layers.extend([nn.LayerNorm(self.width//widths[i]),nn.Linear(self.width//widths[i], self.width//widths[i+1])])
+            if(i<self.depth-1):
+                self.layers.append(nn.LeakyReLU())
+        #print(self.layers)
     def forward(self,data,mask):
         for layer in self.layers:
             data=layer(data)
@@ -41,7 +46,7 @@ class FFNetwork(nn.ModuleList):
     def init_weights(self):
         for layer in self.layers:
             if(layer==nn.Linear):
-                nn.init.uniform_(layer.weight)
+                nn.init.xavier_uniform_(layer.weight)
                 layer.bias.data.fill_(0.01)
 
 def prepare_data(dataset_path,num_of_loaded_files=10,chosen_layer=0,batch_size=5):
@@ -82,16 +87,18 @@ def prepare_data(dataset_path,num_of_loaded_files=10,chosen_layer=0,batch_size=5
 
 def training_replacement_FF(params):
     model=FFNetwork().to(device)
-    #model.init_weights()
+    model.init_weights()
     model.train(True)
     print("FF model created")
-    lr_optimizer = Adam(model.parameters(), lr=0.001,betas=(0.9, 0.98), eps=1e-9)
+    lr_optimizer = Adam(model.parameters(), lr=0.0001,betas=(0.9, 0.98), eps=1e-9)
     print("Preparing data")
     data_loader=prepare_data(params['dataset_path'], params['num_of_loaded_files'], params['num_of_curr_trained_layer'],params["batch_size"])
     mse_loss=nn.MSELoss()
     for epoch in range(params['num_of_epochs']):
         print("Epoch: ",epoch)
         epoch_loss=0
+        num_embeddings=0
+        embeddings_value=0
         for (data,mask,label) in data_loader:
             lr_optimizer.zero_grad()
             pred=model(data,mask)
@@ -100,15 +107,19 @@ def training_replacement_FF(params):
             loss=mse_loss(label,pred)/loss_normalizer
             loss.backward()
             lr_optimizer.step()
-            epoch_loss+=loss.item()
-        print("Loss: ",epoch_loss)
+            with torch.no_grad():
+                embeddings_value+=(torch.mean(torch.abs(torch.flatten(data))).item()/loss_normalizer)*torch.sum(torch.flatten(mask)).item()
+                epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
+                num_embeddings+=torch.sum(torch.flatten(mask)).item()
+        print("Loss: ",epoch_loss/num_embeddings)
+#        print("Avg. value: ", embeddings_value/num_embeddings)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=20)
+    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=190)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_PATH)
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
-    parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=20)
+    parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=40)
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=50)
     args = parser.parse_args()
