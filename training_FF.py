@@ -5,7 +5,8 @@ from torch.utils.data import DataLoader,Dataset
 import os
 import argparse
 from torch.optim import Adam
-DATA_PATH="/cluster/scratch/vbozic/encoder/train"
+from utils.constants import SCRATCH_PATH
+DATA_PATH=os.path.join(SCRATCH_PATH, "encoder/train")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
 
 class FFDataset(Dataset):
