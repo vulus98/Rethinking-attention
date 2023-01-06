@@ -4,7 +4,6 @@ import argparse
 import torch
 from torchtext.data import Example
 
-
 from models.definitions.transformer_model import Transformer
 from utils.data_utils import get_datasets_and_vocabs, get_masks_and_count_tokens_src, DatasetType, LanguageDirection
 from utils.constants import *
@@ -13,13 +12,15 @@ from utils.decoding_utils import greedy_decoding, get_beam_decoder, DecodingMeth
 from utils.utils import print_model_metadata
 from utils.resource_downloader import download_models
 
+# imports for replacing attention layers 
+from models.definitions.transformer_model import replace_attention
+from training_FF import FFNetwork
 
 # Super easy to add translation for a batch of sentences passed as a .txt file for example
 def translate_a_single_sentence(translation_config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU
-
     # Step 1: Prepare the field processor (tokenizer, numericalizer)
-    _, _, src_field_processor, trg_field_processor = get_datasets_and_vocabs(
+    _, _, _, src_field_processor, trg_field_processor = get_datasets_and_vocabs(
         translation_config['dataset_path'],
         translation_config['language_direction'],
         translation_config['dataset_name'] == DatasetType.IWSLT.name
@@ -47,7 +48,13 @@ def translate_a_single_sentence(translation_config):
     print_model_metadata(model_state)
     baseline_transformer.load_state_dict(model_state["state_dict"], strict=True)
     baseline_transformer.eval()
-
+    
+    # Substitute attention layers
+    for i in range(6):
+        FF_net = FFNetwork()
+        baseline_transformer = replace_attention(baseline_transformer, FF_net, i, device = device)
+    print(baseline_transformer)
+    
     # Step 3: Prepare the input sentence
     source_sentence = translation_config['source_sentence']
     ex = Example.fromlist([source_sentence], fields=[('src', src_field_processor)])  # tokenize the sentence
