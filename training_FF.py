@@ -34,9 +34,13 @@ class FFNetwork(nn.ModuleList):
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
         self.layers=list()
-        widths=[1,1,2,8,16,32,16,8,2,1,1]
+        widths=[1,1,2,2,4,4,2,2,1,1]
         self.depth=len(widths)-1
-        self.layers = nn.ModuleList([nn.Linear(self.width//widths[i//2], self.width//widths[i//2+1]) if i%2==0 else nn.ReLU() for i in range(2*self.depth-1)])
+        self.layers=nn.ModuleList()
+        for i in range(self.depth):
+            self.layers.extend([nn.LayerNorm(self.width//widths[i]),nn.Linear(self.width//widths[i], self.width//widths[i+1])])
+            if(i<self.depth-1):
+                self.layers.append(nn.LeakyReLU())
     def forward(self,data,mask):
         for layer in self.layers:
             data=layer(data)
@@ -107,17 +111,18 @@ def training_replacement_FF(params):
     for epoch in range(params['num_of_epochs']):
         print("Epoch: ",epoch)
         epoch_loss=0
+        num_embeddings=0
         for (data,label, mask) in data_loader:
-            
             lr_optimizer.zero_grad()
             pred=model(data,mask)
             with torch.no_grad():
+                num_embeddings+=torch.sum(torch.flatten(mask)).item()
                 loss_normalizer=torch.sum(torch.flatten(mask)).item()/(mask.shape[0]*mask.shape[1])
             loss=mse_loss(label,pred)/loss_normalizer
             loss.backward()
             lr_optimizer.step()
-            epoch_loss+=loss.item()
-        print("Loss: ",epoch_loss)
+            epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
+        print("Loss per embedding element: ",epoch_loss/num_embeddings)
 
 class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
     def __init__(self, input_path, output_path, mask_path, n, t = "max"):
@@ -218,12 +223,12 @@ def collate_batch(batch):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=20)
+    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=150)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_PATH)
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
     parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=20)
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
-    parser.add_argument("--batch_size", type=str, help='batch_size', default=5)
+    parser.add_argument("--batch_size", type=str, help='batch_size', default=500)
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
     training_config = dict()
