@@ -1,4 +1,5 @@
 # PyCharm IDE
+.vscode
 .idea
 __pycache__
 
