@@ -117,7 +117,6 @@ class Encoder(nn.Module):
         # check out the SublayerLogic module)
         return self.norm(src_representations_batch)
 
-
 class EncoderLayer(nn.Module):
 
     def __init__(self, model_dimension, dropout_probability, multi_headed_attention, pointwise_net):
@@ -127,55 +126,21 @@ class EncoderLayer(nn.Module):
 
         self.multi_headed_attention = multi_headed_attention
         self.pointwise_net = pointwise_net
+
         self.model_dimension = model_dimension
-        
-        # Fields for saving intermediate values
-        self.layer_index = None
-        self.batch_count = 0
-        self.inputs = None
-        self.outputs = None
-        self.save_intermediate = False
-        self.dir_path = None
-        
-    def set_save_intermediate(self, layer_index: int, dir_path: str):
-        self.save_intermediate = True
-        self.dir_path = dir_path
-        self.layer_index = layer_index
-        self.batch_count = 0
 
     def forward(self, src_representations_batch, src_mask):
         # Define anonymous (lambda) function which only takes src_representations_batch (srb) as input,
         # this way we have a uniform interface for the sublayer logic.
-        #print(f"Layer {self.layer_index}, batch count {self.batch_count}")
         encoder_self_attention = lambda srb: self.multi_headed_attention(query=srb, key=srb, value=srb, mask=src_mask)
-        # Self-attention MHA sublayer followed by point-wise feed forward net sublayer
-        attention_input = src_representations_batch
-        src_representations_batch = self.sublayers[0](src_representations_batch, encoder_self_attention)
-        attention_output = src_representations_batch
-        if self.save_intermediate:
-            self.save_io(attention_input, attention_output)
 
+        # Self-attention MHA sublayer followed by point-wise feed forward net sublayer
+        src_representations_batch = self.sublayers[0](src_representations_batch, encoder_self_attention)
         src_representations_batch = self.sublayers[1](src_representations_batch, self.pointwise_net)
 
         return src_representations_batch
 
-    def save_io(self, attention_input, attention_output):
-        attention_input = attention_input.cpu()
-        attention_output = attention_output.cpu()
-        self.inputs = attention_input if self.inputs is None else torch.cat([self.inputs, attention_input], dim = 0)
-        self.outputs = attention_output if self.outputs is None else torch.cat([self.outputs, attention_output], dim = 0)
-        print(f"Shape inputs: {self.inputs.shape}")
 
-        if self.inputs.shape[0] >= FLUSH_SIZE:
-            print("Flush")
-            path = os.path.join(self.dir_path, f"input-batch-{self.batch_count}")
-            np.save(path, self.inputs.numpy())
-            self.inputs = None
-    
-            path = os.path.join(self.dir_path, f"output-batch-{self.batch_count}")
-            np.save(path, self.outputs.numpy())
-            self.outputs = None
-            self.batch_count += 1
 #
 # Decoder architecture
 #
