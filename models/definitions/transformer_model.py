@@ -107,7 +107,7 @@ class Encoder(nn.Module):
         # Just update the naming so as to reflect the semantics of what this var will become (the initial encoder layer
         # has embedding vectors as input but later layers have richer token representations)
         src_representations_batch = src_embeddings_batch
-
+        print(src_embeddings_batch.shape)
         # Forward pass through the encoder stack
         for encoder_layer in self.encoder_layers:
             # src_mask's role is to mask/ignore padded token representations in the multi-headed self-attention module
@@ -507,3 +507,75 @@ if __name__ == "__main__":
     print(f'Size of the {"big" if use_big_transformer else "baseline"} transformer = {count_parameters(transformer)}')
 
     out = transformer(src_token_ids_batch, trg_token_ids_batch, src_mask=None, trg_mask=None)
+
+class EncoderLayerSubstitute(nn.Module):
+
+    def __init__(self, encoder_layer, FF_net, device):
+        super().__init__()
+        self.sublayers = encoder_layer.sublayers
+        self.multi_headed_attention = encoder_layer.multi_headed_attention
+        self.pointwise_net = encoder_layer.pointwise_net
+        self.sublayer_zero = SublayerZeroSubstitute(FF_net, device)
+        self.model_dimension = encoder_layer.model_dimension
+
+    def forward(self, src_representations_batch, src_mask):
+        # Define anonymous (lambda) function which only takes src_representations_batch (srb) as input,
+        # this way we have a uniform interface for the sublayer logic.
+
+        # Self-attention MHA sublayer followed by point-wise feed forward net sublayer
+        # The first sublayer is substituted with out FF network
+        # Original code in EncoderLayer:
+        #   encoder_self_attention = lambda srb: self.multi_headed_attention(query=srb, key=srb, value=srb, mask=src_mask)
+        #   src_representations_batch = self.sublayers[0](src_representations_batch, encoder_self_attention)
+        
+        src_representations_batch = self.sublayer_zero(src_representations_batch, src_mask)
+        src_representations_batch = self.sublayers[1](src_representations_batch, self.pointwise_net)
+
+        return src_representations_batch
+
+class SublayerZeroSubstitute(torch.nn.Module):
+    """Layer that adapts FF network to replace MultiHeadedAttention layers.
+
+    Args:
+        torch (nn.Module): Feed forward network that gets the concatenated values of words representation and mimics the behavior of MultiHeadedAttention
+    """
+
+    def __init__(self, FF_net, device):
+        super().__init__()
+        self.FFNetwork = FF_net.to(device)
+        self.device = device
+
+    def forward(self, src_representations_batch, mask): 
+        """
+            query, key and value are all equals. The signature matches the signature of the forward method of MultiHeadedAttention. 
+            query.shape = B x S x MD where B is batch size, S is sentence length and MD is model dimension
+            mask.shape = B x 1 x 1 x S
+        """
+        mask = torch.squeeze(torch.squeeze(mask, dim = 1), dim = 1)
+        output_shape = src_representations_batch.shape
+        # Pad and Reshape
+        src_representations_batch = torch.cat([ src_representations_batch, torch.zeros(pad_shape(src_representations_batch), device = self.device) ], dim = 1)
+        intermediate_shape = src_representations_batch.shape
+        mask = torch.cat([mask, torch.zeros(pad_shape(mask, masks = True), device = self.device, dtype=torch.bool) ], dim = 1)
+        mask = torch.repeat_interleave(mask, src_representations_batch.shape[-1] ,dim=1)
+        src_representations_batch = torch.reshape(src_representations_batch, 
+                                                (src_representations_batch.shape[0],src_representations_batch.shape[1]*src_representations_batch.shape[2]))
+        
+        # Feed through the network
+        src_representations_batch = self.FFNetwork(src_representations_batch, mask)
+        
+        # Reshape and unpdad
+        src_representations_batch = torch.reshape(src_representations_batch, intermediate_shape)
+        src_representations_batch, _ = torch.split(src_representations_batch, [output_shape[1], intermediate_shape[1] - output_shape[1]], dim = 1)
+        assert src_representations_batch.shape == output_shape
+        return src_representations_batch
+
+def replace_sublayer(transformer: nn.Module, substitute: nn.MarginRankingLoss, layer:int, device = "cuda"):
+    transformer.encoder.encoder_layers[layer] = EncoderLayerSubstitute(transformer.encoder.encoder_layers[layer], substitute, device)
+    return transformer
+
+def pad_shape(batch, masks = False):
+    shape = batch.shape
+    if masks:
+        return shape[0],MAX_LEN-shape[1] 
+    return shape[0], MAX_LEN-shape[1], shape[2]

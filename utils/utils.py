@@ -31,7 +31,7 @@ def get_available_binary_name():
         return f'{prefix}_000000.pth'
 
 
-def get_training_state(training_config, model):
+def get_training_state(training_config, steps_taken, model):
     training_state = {
         # "commit_hash": git.Repo(search_parent_directories=True).head.object.hexsha,
         "dataset_name": training_config['dataset_name'],
@@ -39,6 +39,7 @@ def get_training_state(training_config, model):
 
         "num_of_epochs": training_config['num_of_epochs'],
         "batch_size": training_config['batch_size'],
+        "steps_taken": steps_taken,
 
         "state_dict": model.state_dict()
     }

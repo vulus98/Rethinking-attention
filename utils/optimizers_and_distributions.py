@@ -10,12 +10,12 @@ class CustomLRAdamOptimizer:
         Check out playground.py for visualization of the learning rate (visualize_custom_lr_adam).
     """
 
-    def __init__(self, optimizer, model_dimension, num_of_warmup_steps):
+    def __init__(self, optimizer, model_dimension, num_of_warmup_steps, current_step_number = 0):
         self.optimizer = optimizer
         self.model_size = model_dimension
         self.num_of_warmup_steps = num_of_warmup_steps
 
-        self.current_step_number = 0
+        self.current_step_number = current_step_number
 
     def step(self):
         self.current_step_number += 1

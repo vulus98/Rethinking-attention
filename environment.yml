@@ -11,8 +11,8 @@ dependencies:
   - pip:
     - GitPython==3.1.2
     - jupyter==1.0.0
-    - numpy==1.18.4
-    - tensorboard==2.2.2
+    - numpy==1.18.5
+    - tensorboardX
     - nltk==3.5
     - seaborn==0.11.0
     - spacy==2.3.2
