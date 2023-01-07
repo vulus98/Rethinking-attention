@@ -25,7 +25,6 @@ from utils.constants import *
 
 def evaluate_transformer(evaluate_config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
-    device = "cpu"
     # Step 1: Prepare data loaders
     train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
         evaluate_config['dataset_path'],
@@ -56,7 +55,6 @@ def evaluate_transformer(evaluate_config):
     for i in range(1):
         FF_net = FFNetwork()
         baseline_transformer = replace_sublayer(baseline_transformer, FF_net, i, device = device)
-    print(baseline_transformer)
     
     # Step 4: Compute BLEU
     utils.calculate_bleu_score(baseline_transformer, val_token_ids_loader, trg_field_processor)
