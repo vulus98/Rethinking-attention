@@ -10,7 +10,7 @@ from torchtext import datasets
 import spacy
 
 
-from .constants import BOS_TOKEN, EOS_TOKEN, PAD_TOKEN, DATA_DIR_PATH
+from .constants import BOS_TOKEN, EOS_TOKEN, MAX_LEN, PAD_TOKEN, DATA_DIR_PATH
 
 
 class DatasetType(enum.Enum):
@@ -88,12 +88,18 @@ class DatasetWrapper(FastTranslationDataset):
     """
 
     @classmethod
-    def get_train_and_val_datasets(cls, train_cache_path, val_cache_path, fields, **kwargs):
+    def get_train_datasets(cls, train_cache_path, fields, **kwargs):
 
         train_dataset = cls(train_cache_path, fields, **kwargs)
+
+        return train_dataset
+    
+    @classmethod
+    def get_val_datasets(cls, val_cache_path, fields, **kwargs):
+
         val_dataset = cls(val_cache_path, fields, **kwargs)
 
-        return train_dataset, val_dataset
+        return val_dataset
 
     @classmethod
     def get_test_dataset(cls, test_cache_path, fields, **kwargs):
@@ -135,8 +141,9 @@ def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, us
     trg_field_processor = Field(tokenize=trg_tokenizer, init_token=BOS_TOKEN, eos_token=EOS_TOKEN, pad_token=PAD_TOKEN, batch_first=True)
 
     fields = [('src', src_field_processor), ('trg', trg_field_processor)]
-    MAX_LEN = 100  # filter out examples that have more than MAX_LEN tokens
-    filter_pred = lambda x: len(x.src) <= MAX_LEN and len(x.trg) <= MAX_LEN
+    max_len = 100  # filter out examples that have more than MAX_LEN tokens
+    filter_pred = lambda x: len(x.src) <= max_len and len(x.trg) <= max_len
+    filter_val_test = lambda x: len(x.src) <= MAX_LEN and len(x.trg) <= MAX_LEN
 
     # Only call once the splits function it is super slow as it constantly has to redo the tokenization
     prefix = 'de_en' if german_to_english else 'en_de'
@@ -165,16 +172,16 @@ def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, us
         save_cache(train_cache_path, train_dataset)
         save_cache(val_cache_path, val_dataset)
         save_cache(test_cache_path, test_dataset)
+        # HACK: the transformer was trained with max_len 100, to get the same dictionary the training data is still filtered with len 100, but val and test are then filtered with len 50. Both original transformer and the one with replaced attention are evaluated on max len = 50.
+        val_dataset = DatasetWrapper.get_val_datasets( val_cache_path, fields, filter_pred=filter_val_test)
+        test_dataset = DatasetWrapper.get_test_dataset(test_cache_path, fields, filter_pred=filter_val_test)
+        
     else:
         # it's actually better to load from cache as we'll get rid of '\xa0', '\xa0 ' and '\x85' unicode characters
         # which we don't need and which SpaCy unfortunately includes as tokens.
-        train_dataset, val_dataset = DatasetWrapper.get_train_and_val_datasets(
-            train_cache_path,
-            val_cache_path,
-            fields,
-            filter_pred=filter_pred
-        )
-        test_dataset = DatasetWrapper.get_test_dataset(test_cache_path, fields, filter_pred=filter_pred)
+        train_dataset = DatasetWrapper.get_train_datasets(train_cache_path,fields,filter_pred=filter_pred)
+        val_dataset = DatasetWrapper.get_val_datasets( val_cache_path, fields, filter_pred=filter_val_test)
+        test_dataset = DatasetWrapper.get_test_dataset(test_cache_path, fields, filter_pred=filter_val_test)
 
     print(f'Time it took to prepare the data: {time.time() - ts:3f} seconds.')
 
@@ -184,7 +191,6 @@ def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, us
     # Implementation will yield examples and call .src/.trg attributes on them (and those contain tokenized lists)
     src_field_processor.build_vocab(train_dataset.src, min_freq=MIN_FREQ)
     trg_field_processor.build_vocab(train_dataset.trg, min_freq=MIN_FREQ)
-
     return train_dataset, val_dataset, test_dataset, src_field_processor, trg_field_processor
 
 
@@ -229,7 +235,6 @@ def batch_size_fn(new_example, count, sofar):
 # description is misleading as it won't group examples of similar length unless you set sort_within_batch to True!
 def get_data_loaders(dataset_path, language_direction, dataset_name, batch_size, device):
     train_dataset, val_dataset, test_dataset, src_field_processor, trg_field_processor = get_datasets_and_vocabs(dataset_path, language_direction, dataset_name == DatasetType.IWSLT.name)
-
     train_token_ids_loader, val_token_ids_loader, test_token_ids_loader = BucketIterator.splits(
      datasets=(train_dataset, val_dataset, test_dataset),
      batch_size=batch_size,
