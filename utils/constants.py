@@ -18,6 +18,8 @@ BIG_MODEL_LABEL_SMOOTHING_VALUE = 0.1
 
 SCRATCH = os.environ.get('SCRATCH')
 CHECKPOINTS_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'checkpoints')
+CHECKPOINTS_FF_MHA_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'checkpoints', 'ff_mha')
+
 BINARIES_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'binaries')
 FF_MODELS_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'binaries','ff')
 DATA_DIR_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'data')
@@ -28,6 +30,7 @@ os.makedirs(BINARIES_PATH, exist_ok=True)
 os.makedirs(DATA_DIR_PATH, exist_ok=True)
 os.makedirs(LAYER_OUTPUT_PATH, exist_ok=True)
 os.makedirs(MHA_OUTPUT_PATH, exist_ok=True)
+os.makedirs(CHECKPOINTS_FF_MHA_PATH, exist_ok=True)
 
 
 BOS_TOKEN = '<s>'

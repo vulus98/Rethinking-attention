@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader,Dataset, random_split
 import os
 import argparse
 from torch.optim import Adam
-from utils.constants import SCRATCH, MAX_LEN
+from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_FF_MHA_PATH
 from torch.nn.utils.rnn import pad_sequence
 import time
 # from torchmetrics import MeanAbsolutePercentageError
@@ -104,7 +104,10 @@ def training_replacement_FF(params):
             lr_optimizer.step()
             with torch.no_grad():
                 epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
-                mapes.append(MAPE(label, pred))    
+                mapes.append(MAPE(label, pred))
+        if epoch % 20 == 0:
+            ckpt_model_name = f"transformer_ckpt_epoch_{epoch + 1}.pth"
+            torch.save(model.state_dict(), os.path.join(CHECKPOINTS_FF_MHA_PATH, ckpt_model_name))
         print(f"Loss per embedding element:{epoch_loss/num_embeddings}, MAPE: {MAPE(label, pred)}")
 
 class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
