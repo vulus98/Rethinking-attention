@@ -292,4 +292,5 @@ if __name__ == "__main__":
     for arg in vars(args):
         training_config[arg] = getattr(args, arg)
     print("Training arguments parsed")
+
     training_replacement_FF(training_config)
