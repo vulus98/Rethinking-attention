@@ -12,11 +12,6 @@ import time
 # from torchmetrics import MeanAbsolutePercentageError
 
 
-def MAPE(target, output):
-    #Mean Absolute Percentage Error
-    with torch.no_grad():
-        relative_error = torch.abs(output - target) / torch.max(torch.abs(target), torch.ones(output.shape)*1e-32)
-        return torch.mean(relative_error)
 
 
 
@@ -24,8 +19,12 @@ def MAPE(target, output):
 
 DATA_PATH=os.path.join(SCRATCH, "mha_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
-devices=list(range(torch.cuda.device_count()))
+def MAPE(target, output):
+    #Mean Absolute Percentage Error
 
+    with torch.no_grad():
+        relative_error = torch.abs(output - target) / torch.max(torch.abs(target), torch.ones(output.shape, device = device)*1e-32)
+        return torch.mean(relative_error)
 class FFDataset(Dataset):
     def __init__(self, data, masks, labels):
         self.data = torch.tensor(data,device=device)
@@ -48,66 +47,16 @@ class FFNetwork(nn.ModuleList):
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
         self.layers=list()
-        widths=[1,2,1]
+        widths=[1,1,2,2,4,4,2,2,1,1]
         self.depth=len(widths)-1
         self.layers=nn.ModuleList()
         for i in range(self.depth):
-            self.layers.extend([nn.LayerNorm(self.width*widths[i]).to(devices[i+1]),nn.Linear(self.width*widths[i], self.width*widths[i+1]).to(devices[i+1])])
+            self.layers.extend([nn.LayerNorm(self.width//widths[i]),nn.Linear(self.width//widths[i], self.width//widths[i+1])])
             if(i<self.depth-1):
-                self.layers.append(nn.LeakyReLU().to(devices[i+1]))
-            print(self.layers)
-        # self.ln1=nn.LayerNorm(self.width).to(devices[1])
-        # self.ff1=nn.Linear(self.width, 2*self.width).to(devices[1])
-        # self.nl1=nn.LeakyReLU().to(devices[1])
-
-        # self.ln2=nn.LayerNorm(2*self.width).to(devices[2])
-        # self.ff2=nn.Linear(2*self.width, 4*self.width).to(devices[2])
-        # self.nl2=nn.LeakyReLU().to(devices[2])
-
-        # self.ln3=nn.LayerNorm(4*self.width).to(devices[3])
-        # self.ff3=nn.Linear(4*self.width, 8*self.width).to(devices[3])
-        # self.nl3=nn.LeakyReLU().to(devices[3])
-
-        # self.ln4=nn.LayerNorm(8*self.width).to(devices[4])
-        # self.ff4=nn.Linear(8*self.width, 4*self.width).to(devices[4])
-        # self.nl4=nn.LeakyReLU().to(devices[4])
-
-        # self.ln4=nn.LayerNorm(4*self.width).to(devices[5])
-        # self.ff4=nn.Linear(4*self.width, self.width).to(devices[5])
-        
-
+                self.layers.append(nn.LeakyReLU())
     def forward(self,data,mask):
-        # data=data.to(devices[1])
-        # data=self.ln1(data)
-        # data=self.ff1(data)
-        # data=self.nl1(data)
-
-        # data=data.to(devices[2])
-        # data=self.ln2(data)
-        # data=self.ff2(data)
-        # data=self.nl2(data)
-
-        # data=data.to(devices[3])
-        # data=self.ln3(data)
-        # data=self.ff3(data)
-        # data=self.nl3(data)
-
-        # data=data.to(devices[4])
-        # data=self.ln4(data)
-        # data=self.ff4(data)
-        # data=self.nl4(data)
-
-        # data=data.to(devices[5])
-        # data=self.ln5(data)
-        # data=self.ff5(data)
-        for (i,layer) in enumerate(self.layers):
-            if(i%3):
-                data=data.to(devices[i%3+1])
-                print(devices[i%3+1])
-            print(layer)
+        for layer in self.layers:
             data=layer(data)
-        data=data.to(devices[0])
-        mask=mask.to(devices[0])
         return data*mask
     
     def init_weights(self):
@@ -136,6 +85,7 @@ def training_replacement_FF(params):
     lr_optimizer = Adam(model.parameters(), lr=0.0001,betas=(0.9, 0.98), eps=1e-9)
     print("Preparing data")
     data_loader=prepare_data(params['dataset_path'], chosen_layer = params['num_of_curr_trained_layer'], batch_size = params["batch_size"]) 
+      
     mse_loss=nn.MSELoss()
     # mean_abs_percentage_error = MeanAbsolutePercentageError()
     for epoch in range(params['num_of_epochs']):
@@ -152,11 +102,10 @@ def training_replacement_FF(params):
             loss=mse_loss(label,pred)/loss_normalizer
             loss.backward()
             lr_optimizer.step()
-            epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
-            mapes.append(MAPE(label, pred))    
-        #     with torch.no_grad():
-        #         mape = mean_abs_percentage_error(label, pred)
-        print(f"Loss per embedding element:{epoch_loss/num_embeddings}, MAPE: {sum(mapes)/len(mapes)}")
+            with torch.no_grad():
+                epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
+                mapes.append(MAPE(label, pred))    
+        print(f"Loss per embedding element:{epoch_loss/num_embeddings}, MAPE: {MAPE(label, pred)}")
 
 class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
     def __init__(self, input_path, output_path, mask_path, n, t = "max"):
