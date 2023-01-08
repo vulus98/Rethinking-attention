@@ -22,10 +22,12 @@ BINARIES_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'bi
 FF_MODELS_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'binaries','ff')
 DATA_DIR_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'data')
 LAYER_OUTPUT_PATH = os.path.join(SCRATCH, "layer_outputs")
+MHA_OUTPUT_PATH = os.path.join(SCRATCH, "mha_outputs")
 os.makedirs(CHECKPOINTS_PATH, exist_ok=True)
 os.makedirs(BINARIES_PATH, exist_ok=True)
 os.makedirs(DATA_DIR_PATH, exist_ok=True)
 os.makedirs(LAYER_OUTPUT_PATH, exist_ok=True)
+os.makedirs(MHA_OUTPUT_PATH, exist_ok=True)
 
 
 BOS_TOKEN = '<s>'

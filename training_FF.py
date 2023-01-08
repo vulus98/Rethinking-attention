@@ -221,13 +221,13 @@ class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
                 for j in range(i.shape[0]):
                     if t == "max":
                         if l[j] <= n:
-                            self.input.append(i[j, :n])
-                            self.output.append(o[j, :n])
-                            self.mask.append(m[j, :n])
+                            self.input.append( i[ j, : l[j] ] )
+                            self.output.append(o[ j, : l[j] ] )
+                            self.mask.append(  m[ j, : l[j] ] )
                     else:
                         if l[j] == n:
-                            self.input.append(i[j, :n])
-                            self.output.append(o[j, :n])
+                            self.input.append(i[j, :l[j]])
+                            self.output.append(o[j, :l[j]])
         except (UnpicklingError, ValueError):
             print(f"Finished loading datasets from {input_path} and {output_path}")
             print(f"Loaded {len(self.output)} samples in {time.time() - start}s")
@@ -263,12 +263,15 @@ def pad_shape(batch, masks = False):
     return shape[0], MAX_LEN-shape[1], shape[2]
 
 def collate_batch(batch):
+    # pad batch to a fixed length
     inputs  = pad_sequence([x[0] for x in batch], batch_first=True, padding_value=0)
     outputs = pad_sequence([x[1] for x in batch], batch_first=True, padding_value=0)
     masks   = pad_sequence([x[2] for x in batch], batch_first=True, padding_value=0)
+    # pad batch to MAX_LEN
     inputs = torch.cat([inputs, torch.zeros(pad_shape(inputs))], dim = 1).to(device)
     outputs = torch.cat([outputs, torch.zeros(pad_shape(outputs))], dim = 1).to(device)
     masks = torch.cat([masks, torch.zeros(pad_shape(masks, masks = True), dtype=torch.bool)], dim = 1).to(device)
+    # reshape 
     masks = torch.repeat_interleave(masks, inputs.shape[-1] ,dim=1)
     inputs = torch.reshape(inputs, (inputs.shape[0],inputs.shape[1]*inputs.shape[2]))
     outputs = torch.reshape(outputs, (outputs.shape[0],outputs.shape[1]*outputs.shape[2]))

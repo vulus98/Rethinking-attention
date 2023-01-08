@@ -122,7 +122,7 @@ def save_cache(cache_path, dataset):
 #
 
 
-def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, use_caching_mechanism=True):
+def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, use_caching_mechanism=True, fix_length = None):
     german_to_english = language_direction == LanguageDirection.G2E.name
     spacy_de = spacy.load('de_core_news_sm')
     spacy_en = spacy.load('en_core_web_sm')
@@ -137,8 +137,8 @@ def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, us
     # used in  computer vision), namely (B, C, H, W) -> batch size, number of channels, height and width
     src_tokenizer = tokenize_de if german_to_english else tokenize_en
     trg_tokenizer = tokenize_en if german_to_english else tokenize_de
-    src_field_processor = Field(tokenize=src_tokenizer, pad_token=PAD_TOKEN, batch_first=True)
-    trg_field_processor = Field(tokenize=trg_tokenizer, init_token=BOS_TOKEN, eos_token=EOS_TOKEN, pad_token=PAD_TOKEN, batch_first=True)
+    src_field_processor = Field(tokenize=src_tokenizer, pad_token=PAD_TOKEN, batch_first=True, fix_length = fix_length)
+    trg_field_processor = Field(tokenize=trg_tokenizer, init_token=BOS_TOKEN, eos_token=EOS_TOKEN, pad_token=PAD_TOKEN, batch_first=True,fix_length = fix_length)
 
     fields = [('src', src_field_processor), ('trg', trg_field_processor)]
     max_len = 100  # filter out examples that have more than MAX_LEN tokens
@@ -227,7 +227,6 @@ def batch_size_fn(new_example, count, sofar):
 
     num_of_tokens_in_src_tensor = count * longest_src_sentence
     num_of_tokens_in_trg_tensor = count * longest_trg_sentence
-
     return max(num_of_tokens_in_src_tensor, num_of_tokens_in_trg_tensor)
 
 
