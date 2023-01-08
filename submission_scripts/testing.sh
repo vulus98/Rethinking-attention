@@ -5,4 +5,4 @@
 #SBATCH --time 250
 source /cluster/home/vbozic/miniconda3/etc/profile.d/conda.sh
 conda activate pytorch-transformer 
-python -u translation_script.py "$@"
+python -u validation_script.py "$@"

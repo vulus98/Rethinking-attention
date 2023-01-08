@@ -52,7 +52,7 @@ def evaluate_transformer(evaluate_config):
     baseline_transformer.eval()
     
     # Step 3: Substitute attention layers
-    for i in range(1):
+    for i in range(0):
         FF_net = FFNetwork()
         baseline_transformer = replace_sublayer(baseline_transformer, FF_net, i, device = device)
     
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     # Modifiable args - feel free to play with these (only small subset is exposed by design to avoid cluttering)
     #
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_name", type=str, help="transformer model name", default=r'iwslt_e2g.pth')
+    parser.add_argument("--model_name", type=str, help="transformer model name", default=r'transformer_128.pth')
 
     # Keep these 2 in sync with the model you pick via model_name
     parser.add_argument("--dataset_name", type=str, choices=['IWSLT', 'WMT14'], help='which dataset to use for training', default=DatasetType.IWSLT.name)

@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader,Dataset, random_split
+from torch.cuda.amp import GradScaler
 import os
 import argparse
 from torch.optim import Adam
@@ -11,7 +12,7 @@ from torch.nn.utils.rnn import pad_sequence
 import time
 DATA_PATH=os.path.join(SCRATCH, "layer_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
-
+devices=list(range(torch.cuda.device_count()))
 class FFDataset(Dataset):
     def __init__(self, data, masks, labels):
         self.data = torch.tensor(data,device=device)
@@ -27,23 +28,53 @@ class FFDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-class FFNetwork(nn.ModuleList):
+class FFNetwork(nn.Module):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
         super(FFNetwork, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
         self.layers=list()
-        widths=[1,1,2,2,4,4,2,2,1,1]
+        widths=[1,2,4,1]
         self.depth=len(widths)-1
-        self.layers=nn.ModuleList()
-        for i in range(self.depth):
-            self.layers.extend([nn.LayerNorm(self.width//widths[i]),nn.Linear(self.width//widths[i], self.width//widths[i+1])])
-            if(i<self.depth-1):
-                self.layers.append(nn.LeakyReLU())
+        self.ln1=nn.LayerNorm(self.width).to(devices[1])
+        self.ff1=nn.Linear(self.width, 2*self.width).to(devices[1])
+        self.nl1=nn.LeakyReLU().to(devices[1])
+
+        self.ln2=nn.LayerNorm(2*self.width).to(devices[2])
+        self.ff2=nn.Linear(2*self.width, 8*self.width).to(devices[2])
+        self.nl2=nn.LeakyReLU().to(devices[2])
+
+        self.ln3=nn.LayerNorm(8*self.width).to(devices[3])
+        self.ff3=nn.Linear(8*self.width, 4*self.width).to(devices[3])
+        self.nl3=nn.LeakyReLU().to(devices[3])
+
+        self.ln4=nn.LayerNorm(4*self.width).to(devices[4])
+        self.ff4=nn.Linear(4*self.width, self.width).to(devices[4])
+        #self.nl4=nn.LeakyReLU().to(devices[3])
+
     def forward(self,data,mask):
-        for layer in self.layers:
-            data=layer(data)
+        data=data.to(devices[1])
+        data=self.ln1(data)
+        data=self.ff1(data)
+        data=self.nl1(data)
+
+        data=data.to(devices[2])
+        data=self.ln2(data)
+        data=self.ff2(data)
+        data=self.nl2(data)
+
+        data=data.to(devices[3])
+        data=self.ln3(data)
+        data=self.ff3(data)
+        data=self.nl3(data)
+
+        data=data.to(devices[4])
+        data=self.ln4(data)
+        data=self.ff4(data)
+        
+        data=data.to(devices[0])
+        mask=mask.to(devices[0])
         return data*mask
     
     def init_weights(self):
@@ -100,7 +131,7 @@ def prepare_data_legacy(dataset_path,num_of_loaded_files=10,chosen_layer=0,batch
     return data_loader
 
 def training_replacement_FF(params):
-    model=FFNetwork().to(device)
+    model=FFNetwork()#.to(device)
     #model.init_weights()
     model.train(True)
     print("FF model created")
@@ -121,7 +152,8 @@ def training_replacement_FF(params):
             loss=mse_loss(label,pred)/loss_normalizer
             loss.backward()
             lr_optimizer.step()
-            epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
+            with torch.no_grad():
+                epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
         print("Loss per embedding element: ",epoch_loss/num_embeddings)
 
 class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
@@ -228,7 +260,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
     parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=20)
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
-    parser.add_argument("--batch_size", type=str, help='batch_size', default=500)
+    parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
     training_config = dict()
