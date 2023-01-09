@@ -298,7 +298,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
     parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=20)
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
-    parser.add_argument("--batch_size", type=str, help='batch_size', default=500)
+    parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
     parser.add_argument("--checkpoints_folder_name", type = str, help="folder name relative to checkpoint folder")
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
@@ -306,7 +306,8 @@ if __name__ == "__main__":
     for arg in vars(args):
         training_config[arg] = getattr(args, arg)
     print("Training arguments parsed")
-    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH, training_config["checkpoints_folder_name"])
+    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"mha" ,training_config["checkpoints_folder_name"])
     os.makedirs(training_config["checkpoints_folder"], exist_ok = True)
     print(training_config["checkpoints_folder"])
+    print(training_config)
     training_replacement_FF(training_config)
