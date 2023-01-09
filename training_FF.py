@@ -35,14 +35,13 @@ class FFNetwork(nn.ModuleList):
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
         self.layers=list()
-        widths=[1,2,1]
+        widths=[1,2,4,8,4,1]
         self.depth=len(widths)-1
         self.layers=nn.ModuleList()
         for i in range(self.depth):
             self.layers.extend([nn.LayerNorm(self.width*widths[i]).to(devices[i+1]),nn.Linear(self.width*widths[i], self.width*widths[i+1]).to(devices[i+1])])
             if(i<self.depth-1):
                 self.layers.append(nn.LeakyReLU().to(devices[i+1]))
-            print(self.layers)
         # self.ln1=nn.LayerNorm(self.width).to(devices[1])
         # self.ff1=nn.Linear(self.width, 2*self.width).to(devices[1])
         # self.nl1=nn.LeakyReLU().to(devices[1])
@@ -88,10 +87,8 @@ class FFNetwork(nn.ModuleList):
         # data=self.ln5(data)
         # data=self.ff5(data)
         for (i,layer) in enumerate(self.layers):
-            if(i%3):
-                data=data.to(devices[i%3+1])
-                print(devices[i%3+1])
-            print(layer)
+            if(i%3==0):
+                data=data.to(devices[i//3+1])
             data=layer(data)
         data=data.to(devices[0])
         mask=mask.to(devices[0])
@@ -285,7 +282,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
     parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=20)
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
-    parser.add_argument("--batch_size", type=str, help='batch_size', default=50)
+    parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
     training_config = dict()
