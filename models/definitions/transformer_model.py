@@ -627,4 +627,92 @@ def mha_to_mha2(transformer: Transformer, layers:list = [0,1,2,3,4,5]):
     """
     for l in layers:
         transformer.encoder.encoder_layers[l].multi_headed_attention =  MultiHeadedAttention2(transformer.encoder.encoder_layers[l].multi_headed_attention)
+
+
+class AttentionWeights(nn.Module):
+    def __init__(self, mha: MultiHeadedAttention):
+        super().__init__()
+
+        self.head_dimension = mha.head_dimension
+        self.number_of_heads = mha.number_of_heads
+
+        self.qkv_nets = mha.qkv_nets  # identity activation hence "nets"
+        self.attention_dropout =  mha.attention_dropout  # no pun intended, not explicitly mentioned in paper
+        self.softmax = mha.softmax  # -1 stands for apply the softmax along the last dimension
+
+        self.log_attention_weights = mha.log_attention_weights  # should we log attention weights
+        self.attention_weights = None  # for visualization purposes, I cache the weights here (translation_script.py)
+
+    def forward(self, query, key, mask):
+        batch_size = query.shape[0]
+
+        # Step 1: Input linear projection
+        # Notation: B - batch size, NH - number of heads, S/T - max src/trg token-sequence length, HD - head dimension
+        # Shape goes from (B, S/T, NH*HD) over (B, S/T, NH, HD) to (B, NH, S/T, HD) (NH*HD=D where D is model dimension)
+        #query, key, value = [net(x).view(batch_size, -1, self.number_of_heads, self.head_dimension).transpose(1, 2)
+        #                     for net, x in zip(self.qkv_nets, (query, key, value))]
+        query, key = [net(x).view(batch_size, -1, self.number_of_heads, self.head_dimension).transpose(1, 2)
+                            for net, x in zip(self.qkv_nets[:2], (query, key))]
+
+        # Step 1: Scaled dot-product attention, Page 4, Chapter 3.2.1 "Scaled Dot-Product Attention"
+        # Notation: B - batch size, S/T max src/trg token-sequence length, NH - number of heads, HD - head dimension
+        # query/key/value shape = (B, NH, S/T, HD), scores shape = (B, NH, S, S), (B, NH, T, T) or (B, NH, T, S)
+        # scores have different shapes as MHA is used in 3 contexts, self attention for src/trg and source attending MHA
+        scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(self.head_dimension)
+
+        # Step 2: Optionally mask tokens whose representations we want to ignore by setting a big negative number
+        # to locations corresponding to those tokens (force softmax to output 0 probability on those locations).
+        # mask shape = (B, 1, 1, S) or (B, 1, T, T) will get broad-casted (copied) as needed to match scores shape
+        if mask is not None:
+            scores.masked_fill_(mask == torch.tensor(False), float("-inf"))
+
+        # Step 3: Calculate the attention weights - how much should we attend to surrounding token representations
+        attention_weights = self.softmax(scores)
+        if self.log_attention_weights:
+            self.attention_weights = attention_weights
+        # Step 4: Not defined in the original paper apply dropout to attention weights as well
+        attention_weights = self.attention_dropout(attention_weights)
+
+   
+        return attention_weights 
+
+
+class MultiHeadedAttention3(nn.Module):
+    def __init__(self, mha:MultiHeadedAttention):
+            super().__init__()
+
+            self.head_dimension = mha.head_dimension
+            self.number_of_heads = mha.number_of_heads
+
+            # Split mha into attention and linear layer in front. 
+            self.attention_w = AttentionWeights( mha )
+            self.out_projection_net = mha.out_projection_net
+            self.V = mha.qkv_nets[2] # matrix to extract values
+            
+    def forward(self, query, key, value, mask):
+        batch_size = query.shape[0]
         
+        # Extract attention weights and values
+        attention_weights = self.attention_w(query, key, mask)
+        value = self.V(value).view(batch_size, -1, self.number_of_heads, self.head_dimension).transpose(1, 2)
+        
+        # Step 5: based on attention weights calculate new token representations
+        # attention_weights shape = (B, NH, S, S)/(B, NH, T, T) or (B, NH, T, S), value shape = (B, NH, S/T, HD)
+        # Final shape (B, NH, S, HD) for source MHAs or (B, NH, T, HD) target MHAs (again MHAs are used in 3 contexts)
+        intermediate_token_representations = torch.matmul(attention_weights, value)
+        reshaped = intermediate_token_representations.transpose(1, 2).reshape(batch_size, -1, self.number_of_heads * self.head_dimension)
+
+        # Step 4: Output linear projection
+        token_representations = self.out_projection_net(reshaped)
+
+        return token_representations
+
+def mha_to_mha3(transformer: Transformer, layers:list = [0,1,2,3,4,5]):
+    """Substitutes MultiHeadedAttention with MultiHeadedAttention3. Useful to extract attention weights.
+
+    Args:
+        transformer (Transformer): _description_
+        layers (list): list of layers to modify. By default all mha in the encoders are substituted
+    """
+    for l in layers:
+        transformer.encoder.encoder_layers[l].multi_headed_attention =  MultiHeadedAttention3(transformer.encoder.encoder_layers[l].multi_headed_attention)

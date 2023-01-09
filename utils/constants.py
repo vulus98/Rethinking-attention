@@ -25,11 +25,14 @@ FF_MODELS_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'b
 DATA_DIR_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'data')
 LAYER_OUTPUT_PATH = os.path.join(SCRATCH, "layer_outputs")
 MHA_OUTPUT_PATH = os.path.join(SCRATCH, "mha_outputs")
+ATTENTION_WEIGHTS_OUTPUT_PATH = os.path.join(SCRATCH, "attention_weights_outputs")
+
 os.makedirs(CHECKPOINTS_PATH, exist_ok=True)
 os.makedirs(BINARIES_PATH, exist_ok=True)
 os.makedirs(DATA_DIR_PATH, exist_ok=True)
 os.makedirs(LAYER_OUTPUT_PATH, exist_ok=True)
 os.makedirs(MHA_OUTPUT_PATH, exist_ok=True)
+os.makedirs(ATTENTION_WEIGHTS_OUTPUT_PATH, exist_ok=True)
 os.makedirs(CHECKPOINTS_SCRATCH, exist_ok=True)
 
 
