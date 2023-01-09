@@ -91,7 +91,7 @@ class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
         return self.input.shape[1]
 
 class SingleWordsInterResultsDataset(torch.utils.data.Dataset):
-    def __init__(self, input_path, output_path, mask_path):
+    def __init__(self, input_path, output_path, mask_path, device):
         print(f"Starting to load datasets from {input_path} and {output_path} and {mask_path}")
         start = time.time()
 
@@ -102,8 +102,8 @@ class SingleWordsInterResultsDataset(torch.utils.data.Dataset):
         out_cache = f"{output_path}_single.cache"
 
         if os.path.exists(in_cache) and os.path.exists(out_cache):
-            self.input = torch.load(in_cache)
-            self.output = torch.load(out_cache)
+            self.input = torch.load(in_cache).to(device)
+            self.output = torch.load(out_cache).to(device)
             print(f"Finished loading datasets from cache {in_cache} and {out_cache}")
             print(f"Loaded {len(self.output)} samples (flattened) in {time.time() - start}s")
             return
@@ -150,8 +150,8 @@ class SingleWordsInterResultsDataset(torch.utils.data.Dataset):
         maskf.close()
         self.input = torch.stack(self.input, dim=1)
         self.output = torch.stack(self.output, dim=1)
-        self.input = torch.transpose(self.input, 0, 1)
-        self.output = torch.transpose(self.output, 0, 1)
+        self.input = torch.transpose(self.input, 0, 1).to(device)
+        self.output = torch.transpose(self.output, 0, 1).to(device)
         torch.save(self.input, in_cache)
         torch.save(self.output, out_cache)
 
@@ -166,90 +166,101 @@ class SingleWordsInterResultsDataset(torch.utils.data.Dataset):
 
 class AttentionSimulator(nn.Module):
     def __init__(self, model_dimension, nr_layers, nr_units):
+        # TODO: allow for splitting according to multihead attention (e.g. 8 heads)
         super(AttentionSimulator, self).__init__()
-        layers = []
-        def append_layer(in_dim, out_dim):
-            layers.append(nn.Sequential(nn.Linear(in_dim, out_dim), nn.ReLU()))
+        layers = [nn.BatchNorm1d(2*model_dimension)]
+        def append_layer(in_dim, out_dim, dropout = False):
+            layers.append(nn.Sequential(nn.Linear(int(in_dim*model_dimension), int(out_dim*model_dimension)), nn.LeakyReLU()))
+            if dropout:
+                layers.append(nn.Dropout(p=0.8))
 
         assert(nr_layers >= 1)
         if (nr_layers == 1):
-            append_layer(2*model_dimension, model_dimension)
+            append_layer(2, 1)
         elif isinstance(nr_units, int):
-            append_layer(2*model_dimension, nr_units)
+            append_layer(2, nr_units)
             for i in range(1, nr_layers-1):
                 append_layer(nr_units, nr_units)
-            append_layer(nr_units, model_dimension)
+            append_layer(nr_units, 1)
         else:
             assert(len(nr_units)+1 == nr_layers)
-            append_layers(2*model_dimension, nr_units[0])
+            append_layer(2, nr_units[0])
             for i in range(1, nr_layers-1):
-                append_layers(nr_units[i-1], nr_units[i])
-            append_layers(nr_units[-1], model_dimension)
+                append_layer(nr_units[i-1], nr_units[i])
+            append_layer(nr_units[-1], 1)
         self.sequential = nn.Sequential(*layers)
         self.name = f"{nr_layers}_{nr_units}".replace(" ", "")
 
     def forward(self, x):
         return self.sequential(x)
 
-def train_model(model, train_loader, val_loader, device):
+def train_model(model, train_data_set, val_data_set, batch_size):
     print(f"Starting to train model {model.name}")
     time_start = time.time()
     criterion = nn.MSELoss()
     optimizer = Adam(model.parameters())
-    for epoch in range(training_config['num_of_epochs']):
-        # Training loop
-        model.train()
 
-        for batch_idx, batch_data in enumerate(train_loader):
-            inputs, labels = batch_data
-            inputs = inputs.to(device)
-            labels = labels.to(device)
+    train_l = [(i, min(i+batch_size, len(train_data_set)-1)) for i in range(0, len(train_data_set), batch_size)]
+    val_l = [(i, min(i+batch_size, len(val_data_set)-1)) for i in range(0, len(val_data_set), batch_size)]
+
+    # to put the error in context
+    train_out_magnitude = torch.mean(torch.abs(train_data_set.output))
+    val_out_magnitude = torch.mean(torch.abs(val_data_set.output))
+    print(f"train_out_magnitude: {train_out_magnitude}")
+    print(f"val_out_magnitude: {val_out_magnitude}")
+
+    for epoch in range(training_config['num_of_epochs']):
+        # Training
+        model.train()
+        for (batch_idx, (fr, to)) in enumerate(train_l):
+            inputs = train_data_set.input[fr:to]
 
             optimizer.zero_grad()
 
             outputs = model(inputs)
 
-            loss = criterion(outputs, labels)
+            loss = criterion(outputs, train_data_set.output[fr:to])
             loss.backward()
             optimizer.step()
-            if training_config['console_log_freq'] is not None and batch_idx % training_config['console_log_freq'] == 0:
-                print(f'Simulator training: time elapsed={(time.time() - time_start):.2f} [s] '
-                      f'| epoch={epoch + 1} | batch={batch_idx} | training_loss: {loss.item()}')
+            if batch_idx % (len(train_l)//10) == 0:
+                print(f'TRAIN: time elapsed={(time.time() - time_start):.2f} [s] '
+                        f'| epoch={epoch + 1} | batch_part={int(((batch_idx+1)/len(train_l))*10)} | training_loss: {loss.item():.4f}')
 
         # Validation loop
         with torch.no_grad():
             model.eval()
             losses = []
-            for batch_idx, batch_data in enumerate(val_loader):
-                inputs, labels = batch_data
-                inputs = inputs.to(device)
-                labels = labels.to(device)
+            for (batch_idx, (fr, to)) in enumerate(val_l):
+                inputs = val_data_set.input[fr:to]
                 outputs = model(inputs)
-                loss = criterion(outputs, labels)
+                loss = criterion(outputs, val_data_set.output[fr:to])
                 losses.append(loss)
             losses = torch.stack(losses)
-            print(f'Simulator validation loss epoch {epoch+1}: validation_loss: {torch.mean(losses)}')
+            loss = torch.mean(losses)
+            print(f'VALIDATION loss: {loss:.4f} RELATIVE: {((loss/val_out_magnitude)*100):.2f}% in epoch {epoch+1}')
 
         # Save model checkpoint
         if training_config['checkpoint_freq'] is not None and (epoch + 1) % training_config['checkpoint_freq'] == 0:
             ckpt_model_name = f"{model.name}_ckpt_epoch_{epoch + 1}.pth"
-            torch.save(model.state_dict(), os.path.join(SCRATCH, ckpt_model_name))
+            torch.save(model.state_dict(), os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
 
 def train(training_config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    train_data_set = SingleWordsInterResultsDataset(training_config["train_input"], training_config["train_output"], training_config["train_mask"])
-    val_data_set = SingleWordsInterResultsDataset(training_config["val_input"], training_config["val_output"], training_config["val_mask"])
+    train_input = training_config["input"]+"_train"
+    val_input = training_config["input"]+"_val"
 
-    train_loader = DataLoader(train_data_set, batch_size = training_config["batch_size"])
-    val_loader = DataLoader(val_data_set, batch_size = training_config["batch_size"])
+    train_output = training_config["output"]+"_train"
+    val_output = training_config["output"]+"_val"
 
-    model = AttentionSimulator(model_dimension = 128, nr_layers = 3, nr_units = 256).to(device)
-    train_model(model, train_loader, val_loader, device)
-   # for nr_layers in range(1, 5):
-   #     for nr_units in [2**i for i in range(0, 12-nr_layers)]:
-   #         model = AttentionSimulator(model_dimension = 128, nr_layers = 3, nr_units = [128]).to(device)
-   #         train_model(model, train_loader, val_loader)
+    train_mask = training_config["mask"]+"_train"
+    val_mask = training_config["mask"]+"_val"
+
+    train_data_set = SingleWordsInterResultsDataset(train_input, train_output, train_mask, device)
+    val_data_set = SingleWordsInterResultsDataset(val_input, val_output, val_mask, device)
+
+    model = AttentionSimulator(model_dimension = 128, nr_layers = 4, nr_units = [5, 4, 3]).to(device)
+    train_model(model, train_data_set, val_data_set, training_config["batch_size"])
 
 if __name__ == "__main__":
     num_warmup_steps = 4000
@@ -259,14 +270,10 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, help="target number of tokens in a src/trg batch", default=1500)
 
     # Logging/debugging/checkpoint related (helps a lot with experimentation)
-    parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=50)
     parser.add_argument("--checkpoint_freq", type=int, help="checkpoint model saving (epoch) freq", default=1)
-    parser.add_argument("--train_input", type=str, help="path to the training inputs", required=True)
-    parser.add_argument("--train_output", type=str, help="path to the training outputs", required=True)
-    parser.add_argument("--val_input", type=str, help="path to the validation inputs", required=True)
-    parser.add_argument("--val_output", type=str, help="path to the validation outputs", required=True)
-    parser.add_argument("--train_mask", type=str, help="path to the train src mask", required=True)
-    parser.add_argument("--val_mask", type=str, help="path to the val src mask", required=True)
+    parser.add_argument("--input", type=str, help="prefix to the inputs", required=True)
+    parser.add_argument("--output", type=str, help="prefix to the outputs", required=True)
+    parser.add_argument("--mask", type=str, help="prefix to the src masks", required=True)
     args = parser.parse_args()
 
     # Wrapping training configuration into a dictionary
