@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader,Dataset, random_split
 import os
 import argparse
 from torch.optim import Adam
-from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_FF_MHA_PATH
+from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_SCRATCH
 from torch.nn.utils.rnn import pad_sequence
 import time
 # from torchmetrics import MeanAbsolutePercentageError
@@ -93,6 +93,7 @@ def training_replacement_FF(params):
         epoch_loss=0
         num_embeddings=0
         mapes = []
+        start = time.time()
         for (data,label, mask) in data_loader:
             lr_optimizer.zero_grad()
             pred=model(data,mask)
@@ -107,8 +108,8 @@ def training_replacement_FF(params):
                 mapes.append(MAPE(label, pred))
         if epoch % 20 == 0:
             ckpt_model_name = f"transformer_ckpt_epoch_{epoch + 1}.pth"
-            torch.save(model.state_dict(), os.path.join(CHECKPOINTS_FF_MHA_PATH, ckpt_model_name))
-        print(f"Loss per embedding element:{epoch_loss/num_embeddings}, MAPE: {MAPE(label, pred)}")
+            torch.save(model.state_dict(), os.path.join(params["checkpoints_folder"], ckpt_model_name))
+        print(f"Loss per embedding element:{epoch_loss/num_embeddings}, MAPE: {MAPE(label, pred)}, time: {time.time() - start}")
 
 class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
     def __init__(self, input_path, output_path, mask_path, n, t = "max"):
@@ -229,10 +230,14 @@ if __name__ == "__main__":
     parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=20)
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=500)
+    parser.add_argument("--checkpoints_folder_name", type = str, help="folder name relative to checkpoint folder")
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
     training_config = dict()
     for arg in vars(args):
         training_config[arg] = getattr(args, arg)
     print("Training arguments parsed")
+    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH, training_config["checkpoints_folder_name"])
+    os.makedirs(training_config["checkpoints_folder"], exist_ok = True)
+    print(training_config["checkpoints_folder"])
     training_replacement_FF(training_config)
