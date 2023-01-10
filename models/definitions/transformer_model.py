@@ -509,7 +509,7 @@ class SublayerZeroSubstitute(torch.nn.Module):
 
     def __init__(self, FF_net, device):
         super().__init__()
-        self.FFNetwork = FF_net.to(device)
+        self.FFNetwork = FF_net
         self.device = device
 
     def forward(self, src_representations_batch, mask): 

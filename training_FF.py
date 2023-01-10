@@ -7,12 +7,11 @@ from torch.cuda.amp import GradScaler
 import os
 import argparse
 from torch.optim import Adam
-from utils.constants import SCRATCH, MAX_LEN,FF_MODELS_PATH
+from utils.constants import SCRATCH, MAX_LEN,CHECKPOINTS_SCRATCH
 from torch.nn.utils.rnn import pad_sequence
 import time
 DATA_PATH=os.path.join(SCRATCH, "layer_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
-devices=list(range(torch.cuda.device_count()))
 class FFDataset(Dataset):
     def __init__(self, data, masks, labels):
         self.data = torch.tensor(data,device=device)
@@ -31,17 +30,18 @@ class FFDataset(Dataset):
 class FFNetwork(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
         super(FFNetwork, self).__init__()
+        self.devices=list(range(torch.cuda.device_count()))
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
         self.layers=list()
-        widths=[1,2,4,8,4,1]
+        widths=[1,2,8,1]
         self.depth=len(widths)-1
         self.layers=nn.ModuleList()
         for i in range(self.depth):
-            self.layers.extend([nn.LayerNorm(self.width*widths[i]).to(devices[i+1]),nn.Linear(self.width*widths[i], self.width*widths[i+1]).to(devices[i+1])])
+            self.layers.extend([nn.LayerNorm(self.width*widths[i]).to(self.devices[i+1]),nn.Linear(self.width*widths[i], self.width*widths[i+1]).to(self.devices[i+1])])
             if(i<self.depth-1):
-                self.layers.append(nn.LeakyReLU().to(devices[i+1]))
+                self.layers.append(nn.LeakyReLU().to(self.devices[i+1]))
         # self.ln1=nn.LayerNorm(self.width).to(devices[1])
         # self.ff1=nn.Linear(self.width, 2*self.width).to(devices[1])
         # self.nl1=nn.LeakyReLU().to(devices[1])
@@ -88,10 +88,10 @@ class FFNetwork(nn.ModuleList):
         # data=self.ff5(data)
         for (i,layer) in enumerate(self.layers):
             if(i%3==0):
-                data=data.to(devices[i//3+1])
+                data=data.to(self.devices[i//3+1])
             data=layer(data)
-        data=data.to(devices[0])
-        mask=mask.to(devices[0])
+        data=data.to(self.devices[0])
+        mask=mask.to(self.devices[0])
         return data*mask
     
     def init_weights(self):
@@ -171,8 +171,8 @@ def training_replacement_FF(params):
             lr_optimizer.step()
             with torch.no_grad():
                 epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
-            if(epoch%20):
-                torch.save(model.state_dict(), os.path.join(FF_MODELS_PATH, "ff_network{0}".format(epoch)))
+        if(epoch%20==0):
+            torch.save(model.state_dict(), os.path.join(CHECKPOINTS_SCRATCH, "layer{0}".format(params["num_of_curr_trained_layer"]),"ff_network_{0}".format(epoch)))
         print("Loss per embedding element: ",epoch_loss/num_embeddings)
 
 class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
@@ -277,11 +277,11 @@ def collate_batch(batch):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=150)
+    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=21)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_PATH)
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
     parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=20)
-    parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
+    parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=2)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary

@@ -18,7 +18,7 @@ from models.definitions.transformer_model import Transformer
 from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_src_and_trg_batches, DatasetType, LanguageDirection
 import utils.utils as utils
 from utils.constants import *
-
+devices=list(range(torch.cuda.device_count()))
 
 
 
@@ -52,12 +52,18 @@ def evaluate_transformer(evaluate_config):
     baseline_transformer.eval()
     
     # Step 3: Substitute attention layers
-    for i in range(0):
+    epoch=0
+    for i in range(6):
         FF_net = FFNetwork()
+        model_path=os.path.join(CHECKPOINTS_SCRATCH, "layer{0}".format(i),"ff_network_{0}".format(epoch))
+        model_state = torch.load(model_path)
+        FF_net.load_state_dict(model_state)
+        FF_net.eval()
         baseline_transformer = replace_sublayer(baseline_transformer, FF_net, i, device = device)
     
     # Step 4: Compute BLEU
-    utils.calculate_bleu_score(baseline_transformer, val_token_ids_loader, trg_field_processor)
+    with torch.no_grad():
+        utils.calculate_bleu_score(baseline_transformer, val_token_ids_loader, trg_field_processor)
 
 if __name__ == "__main__":
     #
