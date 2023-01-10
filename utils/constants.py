@@ -17,6 +17,7 @@ BIG_MODEL_LABEL_SMOOTHING_VALUE = 0.1
 
 
 SCRATCH = os.environ.get('SCRATCH')
+CHECKPOINTS_SCRATCH = os.path.join(SCRATCH, 'models', 'checkpoints')
 CHECKPOINTS_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'checkpoints')
 CHECKPOINTS_SCRATCH = os.path.join(SCRATCH, 'models', 'checkpoints')
 
@@ -25,6 +26,7 @@ FF_MODELS_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'b
 DATA_DIR_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'data')
 LAYER_OUTPUT_PATH = os.path.join(SCRATCH, "layer_outputs")
 MHA_OUTPUT_PATH = os.path.join(SCRATCH, "mha_outputs")
+os.makedirs(CHECKPOINTS_SCRATCH, exist_ok=True)
 ATTENTION_WEIGHTS_OUTPUT_PATH = os.path.join(SCRATCH, "attention_weights_outputs")
 
 os.makedirs(CHECKPOINTS_PATH, exist_ok=True)
