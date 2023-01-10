@@ -8,4 +8,4 @@
 #SBATCH --mail-type=ALL
 source $HOME/miniconda3/etc/profile.d/conda.sh
 conda activate pytorch-transformer 
-python -u tmp.py "$@"
+python -u training_mh_FF.py "$@"
