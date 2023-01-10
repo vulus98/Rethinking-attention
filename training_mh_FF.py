@@ -147,7 +147,7 @@ def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", dev =
     
     
 def training_replacement_FF(params):
-    model=FFNetwork().to(device)
+    model=FFNetwork()#.to(device)
     #model.init_weights()
     model.train(True)
     print("FF model created")
