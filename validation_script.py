@@ -24,8 +24,8 @@ from utils.constants import *
 devices=list(range(torch.cuda.device_count()))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
 # device = "cpu"
-test = True
-def substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layers, epoch):
+test = False
+def substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, multi_device):
     import models.definitions.mha_only_FF as m
     FF_net = getattr(m, substitute_class)
     print(f"Substituing attention with {FF_net}")
@@ -33,7 +33,9 @@ def substitute_mha_only(baseline_transformer, substitute_class, substitute_model
     layers = [int(layers)] if layers is not None else range(6)
     print(layers)
     for l in layers:
-        ff_net = FF_net().to(device)
+        ff_net = FF_net()
+        if not multi_device:
+            ff_net.to(device)
         if not test:
             model_path=os.path.join(substitute_model_path, f'l{l}', MHA_ONLY_CHECKPOINT_FORMAT.format(epoch, l))
             print(f"Loading weights from {model_path}")
@@ -62,10 +64,10 @@ def substitute_sublayer(baseline_transformer, substitute_class, substitute_model
         replace_sublayer(baseline_transformer, ff_net, l, device)
     
 
-def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, t):
+def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, t, multi_device = False):
     if t == "mha_only":
         print("Substitute mha only")
-        substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layer, epoch)
+        substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, multi_device)
     if t == "sublayer":
         print("Substitute mha layer")
         substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch)
@@ -105,7 +107,8 @@ def evaluate_transformer(evaluate_config):
                              evaluate_config["substitute_model_path"], 
                              evaluate_config["layer"],
                              evaluate_config["epoch"],
-                             evaluate_config["substitute_type"]) 
+                             evaluate_config["substitute_type"],
+                             multi_device = evaluate_config["multi_device"]) 
     else:
         print("#"*100)
         print("\n\t NO SUBSTITUTION \n")
@@ -137,7 +140,8 @@ if __name__ == "__main__":
     parser.add_argument("--layer", help = "If layer is not specified, all layers are substituted", default = None)
     parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.")
     parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["sublayer", "mha_only", "mha_separate_heads", "none"], default="none")
-    
+    parser.add_argument("--multi_device", action = "store_true")
+    parser.add_argument("--untrained", action = "store_true")
     # Decoding related args
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
@@ -145,6 +149,7 @@ if __name__ == "__main__":
     for arg in vars(args):
         evaluate_config[arg] = getattr(args, arg)
     print(evaluate_config)
+    test = evaluate_config["untrained"]
     evaluate_config['num_warmup_steps'] = num_warmup_steps
 
     # Train the original transformer model

@@ -194,7 +194,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
     parser.add_argument("--checkpoints_folder_name", type = str, help="folder name relative to checkpoint folder")
     parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/mha_only.py", required=True)
-    parser.add_argument("--multi_device", type = bool, default=False)
+    parser.add_argument("--multi_device", action = "store_true")
     
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
