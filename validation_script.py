@@ -11,20 +11,21 @@ import time
 
 
 import torch
+import torch.nn as nn
 from tensorboardX import SummaryWriter
 from training_FF import FFNetwork
+import models.definitions.mha_FF as FF_models
 from models.definitions.transformer_model import Transformer, mha_to_mha2, replace_mha, replace_sublayer
 from models.definitions.transformer_model import Transformer
 from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_src_and_trg_batches, DatasetType, LanguageDirection
 import utils.utils as utils
 from utils.constants import *
 from training_mh_separate_heads import FFNetwork_small
-from utils.constants import *
 
 devices=list(range(torch.cuda.device_count()))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
 # device = "cpu"
-test = True
+test = False
 def substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layers, epoch):
     import models.definitions.mha_only_FF as m
     FF_net = getattr(m, substitute_class)
@@ -46,7 +47,7 @@ def substitute_mha_only(baseline_transformer, substitute_class, substitute_model
     
 def substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layers, epoch):
     import models.definitions.mha_FF as m #TODO: place you FF_net definitions in this file
-    FF_net = getattr(m, substitute_class)
+    FF_net =substitute_class
     print(f"Substituing attention with {FF_net}")
     mha_to_mha2(baseline_transformer)
     layers = [int(layers)] if layers is not None else range(6)
@@ -55,7 +56,7 @@ def substitute_sublayer(baseline_transformer, substitute_class, substitute_model
     for l in layers:
         ff_net = FF_net()
         if not test:
-            model_path=os.path.join(substitute_model_path, f'l{l}', MHA__CHECKPOINT_FORMAT.format(epoch, l)) # TODO: modify according to your naming
+            model_path=os.path.join(substitute_model_path, 'layer{0}'.format(l), MHA__CHECKPOINT_FORMAT.format(epoch)) # TODO: modify according to your naming
             model_state = torch.load(model_path)
             ff_net.load_state_dict(model_state)
         ff_net.eval()
@@ -132,11 +133,11 @@ if __name__ == "__main__":
     # Cache files and datasets are downloaded here during training, keep them in sync for speed
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
     parser.add_argument("--batch_size", type=int, help="target number of tokens in a src/trg batch", default=1500)
-    parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FF_large")
-    parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth")
+    parser.add_argument("--substitute_class", type=nn.Module, help="class that substitutes attention e.g. FF_large", default=FF_models.FFNetwork_large)
+    parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = "/cluster/scratch/vbozic/models/checkpoints")
     parser.add_argument("--layer", help = "If layer is not specified, all layers are substituted", default = None)
-    parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.")
-    parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["sublayer", "mha_only", "mha_separate_heads", "none"], default="none")
+    parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=40)
+    parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["sublayer", "mha_only", "mha_separate_heads", "none"], default="sublayer")
     
     # Decoding related args
     args = parser.parse_args()
