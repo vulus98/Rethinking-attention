@@ -608,14 +608,22 @@ class AttentionSubstitute(nn.Module):
         self.device = device
         
     def forward(self, query, key, value, mask):
-        """
-            This substitute is used in self-attention. Therefore query == key == value
+        """This layer substitutes the Attention layer in mha2. 
+
+        Args:
+            query (Tensor): B x S x MD
+            key (Tensor):  B x S x MD
+            value (Tensor):  B x S x MD
+            mask (Tensor): B x 1 x 1 x S
+
+        Returns:
+            Tensor: B x NH x S x HD
         """
         print("Attention substitute")
         S = value.shape[1]
         B = len(value)
-        NH = BASELINE_MODEL_DIMENSION // BASELINE_MODEL_NUMBER_OF_HEADS
-        # 1. Pad
+        HD = BASELINE_MODEL_DIMENSION // BASELINE_MODEL_NUMBER_OF_HEADS
+        # 1. Pad to MAX_LEN
         inputs = torch.cat([value, torch.zeros(pad_shape(value), device = self.device)], dim = 1)
         inputs_shape = inputs.shape
         mask = torch.squeeze(torch.squeeze(mask, dim = 1), dim = 1)
@@ -625,14 +633,15 @@ class AttentionSubstitute(nn.Module):
         inputs = inputs.reshape((inputs_shape[0], inputs_shape[1]* inputs_shape[2]))
         # 3. Compute
         inputs = inputs*mask
-        mask = mask.reshape((B,MAX_LEN  * NH, BASELINE_MODEL_NUMBER_OF_HEADS)).transpose(1,2)
+        mask = mask.reshape((B,MAX_LEN  * HD, BASELINE_MODEL_NUMBER_OF_HEADS)).transpose(1,2)
         outputs = []
         for h, ff in enumerate(self.ff_list):
+            # inputs.shape = B x MAX_LEN * MD
+            # mask.shape   = B x MAX_LEN * HD
             # outputs[i] has shape BxMAX_LENxHD, HD = head dimension
             outputs.append(ff.forward(inputs, mask[:,h]))
-        # shape = BxNHxMAX_LENxHD
+        # shape = BxNHxMAX_LEN*HD
         outputs = torch.stack(outputs, dim = 1)
-    
         # 4. Unflatten and unpad
         # shape = BxNHxSxHD
         outputs = outputs.reshape((outputs.shape[0], outputs.shape[1], MAX_LEN, -1))
