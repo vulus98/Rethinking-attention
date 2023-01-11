@@ -8,6 +8,7 @@ dependencies:
   - matplotlib==3.1.3
   - pytorch==1.5.0
   - torchtext==0.6.0
+  - numpy==1.20.3
   - pip:
     - GitPython==3.1.2
     - jupyter==1.0.0

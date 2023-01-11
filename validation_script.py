@@ -13,18 +13,64 @@ import time
 import torch
 from tensorboardX import SummaryWriter
 from training_FF import FFNetwork
-from models.definitions.transformer_model import Transformer, replace_sublayer
+from models.definitions.transformer_model import Transformer, mha_to_mha2, replace_mha, replace_sublayer
 from models.definitions.transformer_model import Transformer
 from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_src_and_trg_batches, DatasetType, LanguageDirection
 import utils.utils as utils
 from utils.constants import *
+from training_mh_separate_heads import FFNetwork_small
+from utils.constants import *
+
 devices=list(range(torch.cuda.device_count()))
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
+# device = "cpu"
+test = True
+def substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layers, epoch):
+    import models.definitions.mha_only_FF as m
+    FF_net = getattr(m, substitute_class)
+    print(f"Substituing attention with {FF_net}")
+    mha_to_mha2(baseline_transformer)
+    layers = [int(layers)] if layers is not None else range(6)
+    print(layers)
+    for l in layers:
+        ff_net = FF_net().to(device)
+        if not test:
+            model_path=os.path.join(substitute_model_path, f'l{l}', MHA_ONLY_CHECKPOINT_FORMAT.format(epoch, l))
+            print(f"Loading weights from {model_path}")
+            model_state = torch.load(model_path)
+            ff_net.load_state_dict(model_state)
+        else:
+            print("Test uninitialized")
+        ff_net.eval()
+        replace_mha(baseline_transformer, ff_net, l, device)
+    
+def substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layers, epoch):
+    import models.definitions.mha_FF as m #TODO: place you FF_net definitions in this file
+    FF_net = getattr(m, substitute_class)
+    print(f"Substituing attention with {FF_net}")
+    mha_to_mha2(baseline_transformer)
+    layers = [int(layers)] if layers is not None else range(6)
+    print(layers)
+    # Step 3: Substitute attention layers   
+    for l in layers:
+        ff_net = FF_net()
+        if not test:
+            model_path=os.path.join(substitute_model_path, f'l{l}', MHA__CHECKPOINT_FORMAT.format(epoch, l)) # TODO: modify according to your naming
+            model_state = torch.load(model_path)
+            ff_net.load_state_dict(model_state)
+        ff_net.eval()
+        replace_sublayer(baseline_transformer, ff_net, l, device)
+    
 
-
-
+def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, t):
+    if t == "mha_only":
+        print("Substitute mha only")
+        substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layer, epoch)
+    if t == "sublayer":
+        print("Substitute mha layer")
+        substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch)
 
 def evaluate_transformer(evaluate_config):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
     # Step 1: Prepare data loaders
     train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
         evaluate_config['dataset_path'],
@@ -51,16 +97,20 @@ def evaluate_transformer(evaluate_config):
     baseline_transformer.load_state_dict(model_state["state_dict"], strict=True)
     baseline_transformer.eval()
     
-    # Step 3: Substitute attention layers
-    epoch=20
-    for i in range(6):
-        FF_net = FFNetwork()
-        model_path=os.path.join(CHECKPOINTS_SCRATCH, "layer{0}".format(i),"ff_network_{0}".format(epoch))
-        model_state = torch.load(model_path)
-        FF_net.load_state_dict(model_state)
-        FF_net.eval()
-        baseline_transformer = replace_sublayer(baseline_transformer, FF_net, i, device = device)
-    
+     
+    # Step 3: substitute attention
+    if evaluate_config["substitute_type"] != "none":
+        substitute_attention(baseline_transformer, 
+                             evaluate_config["substitute_class"], 
+                             evaluate_config["substitute_model_path"], 
+                             evaluate_config["layer"],
+                             evaluate_config["epoch"],
+                             evaluate_config["substitute_type"]) 
+    else:
+        print("#"*100)
+        print("\n\t NO SUBSTITUTION \n")
+        print("#"*100)
+        
     # Step 4: Compute BLEU
     with torch.no_grad():
         utils.calculate_bleu_score(baseline_transformer, val_token_ids_loader, trg_field_processor)
@@ -82,13 +132,19 @@ if __name__ == "__main__":
     # Cache files and datasets are downloaded here during training, keep them in sync for speed
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
     parser.add_argument("--batch_size", type=int, help="target number of tokens in a src/trg batch", default=1500)
-
+    parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FF_large")
+    parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth")
+    parser.add_argument("--layer", help = "If layer is not specified, all layers are substituted", default = None)
+    parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.")
+    parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["sublayer", "mha_only", "mha_separate_heads", "none"], default="none")
+    
     # Decoding related args
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
     evaluate_config = dict()
     for arg in vars(args):
         evaluate_config[arg] = getattr(args, arg)
+    print(evaluate_config)
     evaluate_config['num_warmup_steps'] = num_warmup_steps
 
     # Train the original transformer model
