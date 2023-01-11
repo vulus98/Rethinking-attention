@@ -52,7 +52,7 @@ def evaluate_transformer(evaluate_config):
     baseline_transformer.eval()
     
     # Step 3: Substitute attention layers
-    epoch=0
+    epoch=20
     for i in range(6):
         FF_net = FFNetwork()
         model_path=os.path.join(CHECKPOINTS_SCRATCH, "layer{0}".format(i),"ff_network_{0}".format(epoch))
