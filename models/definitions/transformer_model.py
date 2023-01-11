@@ -537,7 +537,7 @@ class SublayerZeroSubstitute(torch.nn.Module):
         assert src_representations_batch.shape == output_shape
         return src_representations_batch
 
-def replace_sublayer(transformer: nn.Module, substitute: nn.MarginRankingLoss, layer:int, device = "cuda"):
+def replace_sublayer(transformer: nn.Module, substitute: nn.Module, layer:int, device = "cuda"):
     transformer.encoder.encoder_layers[layer] = EncoderLayerSubstitute(transformer.encoder.encoder_layers[layer], substitute, device)
     return transformer
 
@@ -596,6 +596,64 @@ class Attention(nn.Module):
 
         return intermediate_token_representations 
 
+class AttentionSubstitute(nn.Module):
+    def __init__(self, ff_list:list, device = "cuda"):
+        """Substitutes each attention head with a FF.
+
+        Args:
+            ff_list (list[FF_network]): Feed forward nets that compute the attention values
+        """
+        super().__init__()
+        self.ff_list = ff_list
+        self.device = device
+        
+    def forward(self, query, key, value, mask):
+        """This layer substitutes the Attention layer in mha2. 
+
+        Args:
+            query (Tensor): B x S x MD
+            key (Tensor):  B x S x MD
+            value (Tensor):  B x S x MD
+            mask (Tensor): B x 1 x 1 x S
+
+        Returns:
+            Tensor: B x NH x S x HD
+        """
+        print("Attention substitute")
+        S = value.shape[1]
+        B = len(value)
+        HD = BASELINE_MODEL_DIMENSION // BASELINE_MODEL_NUMBER_OF_HEADS
+        # 1. Pad to MAX_LEN
+        inputs = torch.cat([value, torch.zeros(pad_shape(value), device = self.device)], dim = 1)
+        inputs_shape = inputs.shape
+        mask = torch.squeeze(torch.squeeze(mask, dim = 1), dim = 1)
+        mask = torch.cat([mask, torch.zeros(pad_shape(mask, masks = True), device = self.device, dtype=torch.bool) ], dim = 1)
+        # 2. Flatten
+        mask = torch.repeat_interleave(mask, inputs.shape[-1] ,dim=1)
+        inputs = inputs.reshape((inputs_shape[0], inputs_shape[1]* inputs_shape[2]))
+        # 3. Compute
+        inputs = inputs*mask
+        mask = mask.reshape((B,MAX_LEN  * HD, BASELINE_MODEL_NUMBER_OF_HEADS)).transpose(1,2)
+        outputs = []
+        for h, ff in enumerate(self.ff_list):
+            # inputs.shape = B x MAX_LEN * MD
+            # mask.shape   = B x MAX_LEN * HD
+            # outputs[i] has shape BxMAX_LENxHD, HD = head dimension
+            outputs.append(ff.forward(inputs, mask[:,h]))
+        # shape = BxNHxMAX_LEN*HD
+        outputs = torch.stack(outputs, dim = 1)
+        # 4. Unflatten and unpad
+        # shape = BxNHxSxHD
+        outputs = outputs.reshape((outputs.shape[0], outputs.shape[1], MAX_LEN, -1))
+        outputs, pad =  torch.split(outputs,[S, MAX_LEN - S] , dim = 2)   
+        # assert(np.prod(pad.shape) == (pad == 0).sum())
+        return outputs 
+
+def replace_mha(transformer: nn.Module, substitute: list, layer:int, device = "cuda"):
+    if not type(transformer.encoder.encoder_layers[layer].multi_headed_attention) == MultiHeadedAttention2:
+        raise TypeError("Use function mha_to_mha2 first")
+    transformer.encoder.encoder_layers[layer].multi_headed_attention.attention = AttentionSubstitute(substitute, device = device)
+    return transformer
 class MultiHeadedAttention2(nn.Module):
     def __init__(self, mha:MultiHeadedAttention):
             super().__init__()
