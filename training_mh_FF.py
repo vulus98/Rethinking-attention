@@ -6,11 +6,11 @@ from torch.utils.data import DataLoader,Dataset, random_split
 import os
 import argparse
 from torch.optim import Adam
-from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_SCRATCH
+from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_SCRATCH, MHA_ONLY_CHECKPOINT_FORMAT
 from torch.nn.utils.rnn import pad_sequence
 import time
 # from torchmetrics import MeanAbsolutePercentageError
-
+import models.definitions.mha_only_FF as FF_models
 
 DATA_PATH=os.path.join(SCRATCH, "mha_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
@@ -21,119 +21,7 @@ def MAPE(target, output):
     with torch.no_grad():
         relative_error = torch.abs(output - target) / torch.max(torch.abs(target), torch.ones(output.shape, device = device)*1e-32)
         return torch.mean(relative_error)
-class FFDataset(Dataset):
-    def __init__(self, data, masks, labels):
-        self.data = torch.tensor(data,device=device)
-        self.labels = torch.tensor(labels,device=device)
-        self.masks= torch.tensor(masks,device=device)
-        
-    def __getitem__(self, index):
-        x = self.data[index]
-        y = self.masks[index]
-        z = self.labels[index]
-        return x, y, z
-    
-    def __len__(self):
-        return len(self.data)
-
-class FFNetwork_small(nn.ModuleList):
-    def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_small, self).__init__()
-        self.sentence_length=sentence_length
-        self.model_dimension=model_dimension
-        self.width=self.sentence_length*self.model_dimension
-        self.layers=list()
-        widths=[1,2,2,1]
-        self.depth=len(widths)-1
-        self.layers=nn.ModuleList()
-        for i in range(self.depth):
-            self.layers.extend([nn.LayerNorm(self.width * widths[i]),nn.Linear(self.width * widths[i], self.width * widths[i+1])])
-            if(i<self.depth-1):
-                self.layers.append(nn.LeakyReLU())
-    def forward(self,data,mask):
-        for layer in self.layers:
-            data=layer(data)
-        return data*mask
-    
-    def init_weights(self):
-        for layer in self.layers:
-            if(layer==nn.Linear):
-                nn.init.uniform_(layer.weight)
-                layer.bias.data.fill_(0.01)
-
-class FFNetwork(nn.ModuleList):
-    def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork, self).__init__()
-        self.devices=list(range(torch.cuda.device_count()))
-        self.sentence_length=sentence_length
-        self.model_dimension=model_dimension
-        self.width=self.sentence_length*self.model_dimension
-        self.layers=list()
-        widths=[1,2,8,1]
-        self.depth=len(widths)-1
-        self.layers=nn.ModuleList()
-        for i in range(self.depth):
-            self.layers.extend([nn.LayerNorm(self.width*widths[i]).to(self.devices[i+1]),nn.Linear(self.width*widths[i], self.width*widths[i+1]).to(self.devices[i+1])])
-            if(i<self.depth-1):
-                self.layers.append(nn.LeakyReLU().to(self.devices[i+1]))
-        # self.ln1=nn.LayerNorm(self.width).to(devices[1])
-        # self.ff1=nn.Linear(self.width, 2*self.width).to(devices[1])
-        # self.nl1=nn.LeakyReLU().to(devices[1])
-
-        # self.ln2=nn.LayerNorm(2*self.width).to(devices[2])
-        # self.ff2=nn.Linear(2*self.width, 4*self.width).to(devices[2])
-        # self.nl2=nn.LeakyReLU().to(devices[2])
-
-        # self.ln3=nn.LayerNorm(4*self.width).to(devices[3])
-        # self.ff3=nn.Linear(4*self.width, 8*self.width).to(devices[3])
-        # self.nl3=nn.LeakyReLU().to(devices[3])
-
-        # self.ln4=nn.LayerNorm(8*self.width).to(devices[4])
-        # self.ff4=nn.Linear(8*self.width, 4*self.width).to(devices[4])
-        # self.nl4=nn.LeakyReLU().to(devices[4])
-
-        # self.ln4=nn.LayerNorm(4*self.width).to(devices[5])
-        # self.ff4=nn.Linear(4*self.width, self.width).to(devices[5])
-        
-
-    def forward(self,data,mask):
-        # data=data.to(devices[1])
-        # data=self.ln1(data)
-        # data=self.ff1(data)
-        # data=self.nl1(data)
-
-        # data=data.to(devices[2])
-        # data=self.ln2(data)
-        # data=self.ff2(data)
-        # data=self.nl2(data)
-
-        # data=data.to(devices[3])
-        # data=self.ln3(data)
-        # data=self.ff3(data)
-        # data=self.nl3(data)
-
-        # data=data.to(devices[4])
-        # data=self.ln4(data)
-        # data=self.ff4(data)
-        # data=self.nl4(data)
-
-        # data=data.to(devices[5])
-        # data=self.ln5(data)
-        # data=self.ff5(data)
-        for (i,layer) in enumerate(self.layers):
-            if(i%3==0):
-                data=data.to(self.devices[i//3+1])
-            data=layer(data)
-        data=data.to(self.devices[0])
-        mask=mask.to(self.devices[0])
-        return data*mask
-    
-    def init_weights(self):
-        for layer in self.layers:
-            if(layer==nn.Linear):
-                nn.init.uniform_(layer.weight)
-                layer.bias.data.fill_(0.01)
-                
+         
 def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", dev = False):
     if t not in ["train", "test", "val"]:
         raise ValueError("ERROR: t must be train, test, or val.")
@@ -147,7 +35,11 @@ def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", dev =
     
     
 def training_replacement_FF(params):
-    model=FFNetwork_small().to(device)
+    FF_net = getattr(FF_models, params["substitute_class"])
+    print(f"Training model: {FF_net}")
+    model=FF_net()
+    if not params["multi_device"]:
+        model.to(device)
     # print(model)
     #model.init_weights()
     model.train(True)
@@ -177,7 +69,7 @@ def training_replacement_FF(params):
                 epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
                 mapes.append(MAPE(label, pred))
         if epoch % 20 == 0:
-            ckpt_model_name = f"ff_network_{epoch + 1}_layer_{params['num_of_curr_trained_layer']}.pth"
+            ckpt_model_name = MHA_ONLY_CHECKPOINT_FORMAT.format(epoch+1, params['num_of_curr_trained_layer'])
             torch.save(model.state_dict(), os.path.join(params["checkpoints_folder"], ckpt_model_name))
         print(f"Loss per embedding element:{epoch_loss/num_embeddings}, MAPE: {MAPE(label, pred)}, time: {time.time() - start}")
 
@@ -301,6 +193,9 @@ if __name__ == "__main__":
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
     parser.add_argument("--checkpoints_folder_name", type = str, help="folder name relative to checkpoint folder")
+    parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/mha_only.py", required=True)
+    parser.add_argument("--multi_device", type = bool, default=False)
+    
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
     training_config = dict()
