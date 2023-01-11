@@ -99,14 +99,16 @@ def get_train_val_loop(baseline_transformer, custom_lr_optimizer, kl_div_loss, l
 
 def train_transformer(training_config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
-
+    # device = "cpu"
     # Step 1: Prepare data loaders
+    # NOTE: If we wanted to load the pretrained transformer, we would need to first load the entire training data to get the full vocabulary. Then reload the dataset filtering for sentences s.t. S <= MAX_LEN
     train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
         training_config['dataset_path'],
         training_config['language_direction'],
         training_config['dataset_name'],
         training_config['batch_size'],
-        device)
+        device,
+        max_len_train=MAX_LEN)
 
     pad_token_id = src_field_processor.vocab.stoi[PAD_TOKEN]  # pad token id is the same for target as well
     src_vocab_size = len(src_field_processor.vocab)
@@ -129,7 +131,8 @@ def train_transformer(training_config):
                              training_config["substitute_model_path"], 
                              training_config["layer"],
                              training_config["epoch"],
-                             training_config["substitute_type"]) 
+                             training_config["substitute_type"],
+                             training_config["untrained"]) 
     else:
         print("#"*100)
         print("\n\t NO SUBSTITUTION \n")
@@ -212,11 +215,12 @@ if __name__ == "__main__":
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
     parser.add_argument("--checkpoint_freq", type=int, help="checkpoint model saving (epoch) freq", default=1)
     parser.add_argument("--start_point", type=int, help="checkpoint model (epoch) where to resume training from", default=0)
-    parser.add_argument("--substitute_class", type=nn.Module, help="class that substitutes attention e.g. FF_large", default=FF_models.FFNetwork_large)
+    parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FF_large")
     parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = "/cluster/scratch/vbozic/models/checkpoints")
     parser.add_argument("--layer", help = "If layer is not specified, all layers are substituted", default = None)
     parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=20)
     parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["sublayer", "mha_only", "mha_separate_heads", "none"], default="sublayer")
+    parser.add_argument("--untrained", action = "store_true")
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
     training_config = dict()

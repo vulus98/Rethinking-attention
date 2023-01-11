@@ -25,8 +25,8 @@ from training_mh_separate_heads import FFNetwork_small
 devices=list(range(torch.cuda.device_count()))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
 # device = "cpu"
-test = True
-def substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layers, epoch):
+test = False
+def substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained):
     import models.definitions.mha_only_FF as m
     FF_net = getattr(m, substitute_class)
     print(f"Substituing attention with {FF_net}")
@@ -35,7 +35,7 @@ def substitute_mha_only(baseline_transformer, substitute_class, substitute_model
     print(layers)
     for l in layers:
         ff_net = FF_net().to(device)
-        if not test:
+        if not untrained:
             model_path=os.path.join(substitute_model_path, f'l{l}', MHA_ONLY_CHECKPOINT_FORMAT.format(epoch, l))
             print(f"Loading weights from {model_path}")
             model_state = torch.load(model_path)
@@ -45,18 +45,17 @@ def substitute_mha_only(baseline_transformer, substitute_class, substitute_model
         ff_net.eval()
         replace_mha(baseline_transformer, ff_net, l, device)
     
-def substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layers, epoch):
+def substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained):
     import models.definitions.mha_FF as m #TODO: place you FF_net definitions in this file
     FF_net =substitute_class
     print(f"Substituing attention with {FF_net}")
     mha_to_mha2(baseline_transformer)
     layers = [int(layers)] if layers is not None else range(6)
     print(layers)
-    test = True
     # Step 3: Substitute attention layers   
     for l in layers:
         ff_net = FF_net()
-        if not test:
+        if not untrained:
             model_path=os.path.join(substitute_model_path, 'layer{0}'.format(l), MHA__CHECKPOINT_FORMAT.format(epoch)) # TODO: modify according to your naming
             model_state = torch.load(model_path)
             ff_net.load_state_dict(model_state)
@@ -66,13 +65,13 @@ def substitute_sublayer(baseline_transformer, substitute_class, substitute_model
         replace_sublayer(baseline_transformer, ff_net, l, device)
     
 
-def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, t):
+def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, t, untrained):
     if t == "mha_only":
         print("Substitute mha only")
-        substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layer, epoch)
+        substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
     if t == "sublayer":
         print("Substitute mha layer")
-        substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch)
+        substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
 
 def evaluate_transformer(evaluate_config):
     # Step 1: Prepare data loaders
