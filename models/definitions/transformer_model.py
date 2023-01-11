@@ -529,6 +529,7 @@ class SublayerZeroSubstitute(torch.nn.Module):
                                                 (src_representations_batch.shape[0],src_representations_batch.shape[1]*src_representations_batch.shape[2]))
         
         # Feed through the network
+        src_representations_batch = src_representations_batch * mask
         src_representations_batch = self.FFNetwork(src_representations_batch, mask)
         
         # Reshape and unpdad
