@@ -25,7 +25,7 @@ from training_mh_separate_heads import FFNetwork_small
 devices=list(range(torch.cuda.device_count()))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
 # device = "cpu"
-test = False
+test = True
 def substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layers, epoch):
     import models.definitions.mha_only_FF as m
     FF_net = getattr(m, substitute_class)
@@ -52,6 +52,7 @@ def substitute_sublayer(baseline_transformer, substitute_class, substitute_model
     mha_to_mha2(baseline_transformer)
     layers = [int(layers)] if layers is not None else range(6)
     print(layers)
+    test = True
     # Step 3: Substitute attention layers   
     for l in layers:
         ff_net = FF_net()
@@ -59,7 +60,9 @@ def substitute_sublayer(baseline_transformer, substitute_class, substitute_model
             model_path=os.path.join(substitute_model_path, 'layer{0}'.format(l), MHA__CHECKPOINT_FORMAT.format(epoch)) # TODO: modify according to your naming
             model_state = torch.load(model_path)
             ff_net.load_state_dict(model_state)
-        ff_net.eval()
+            ff_net.eval()
+        else:
+            ff_net.train()
         replace_sublayer(baseline_transformer, ff_net, l, device)
     
 
@@ -136,7 +139,7 @@ if __name__ == "__main__":
     parser.add_argument("--substitute_class", type=nn.Module, help="class that substitutes attention e.g. FF_large", default=FF_models.FFNetwork_large)
     parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = "/cluster/scratch/vbozic/models/checkpoints")
     parser.add_argument("--layer", help = "If layer is not specified, all layers are substituted", default = None)
-    parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=40)
+    parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=20)
     parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["sublayer", "mha_only", "mha_separate_heads", "none"], default="sublayer")
     
     # Decoding related args

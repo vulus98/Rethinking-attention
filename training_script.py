@@ -21,8 +21,8 @@ from models.definitions.transformer_model import Transformer
 from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_src_and_trg_batches, DatasetType, LanguageDirection
 import utils.utils as utils
 from utils.constants import *
-
-
+from validation_script import substitute_attention
+import models.definitions.mha_FF as FF_models
 
 # Global vars for logging purposes
 num_of_trg_tokens_processed = 0
@@ -121,6 +121,20 @@ def train_transformer(training_config):
         number_of_layers=BASELINE_MODEL_NUMBER_OF_LAYERS,
         dropout_probability=BASELINE_MODEL_DROPOUT_PROB
     ).to(device)
+
+    # Step 3: substitute attention
+    if training_config["substitute_type"] != "none":
+        substitute_attention(baseline_transformer, 
+                             training_config["substitute_class"], 
+                             training_config["substitute_model_path"], 
+                             training_config["layer"],
+                             training_config["epoch"],
+                             training_config["substitute_type"]) 
+    else:
+        print("#"*100)
+        print("\n\t NO SUBSTITUTION \n")
+        print("#"*100)
+
     #baseline_transformer=torch.nn.DataParallel(baseline_transformer,device_ids=list(range(4)))
     # Step 3: Prepare other training related utilities
     kl_div_loss = nn.KLDivLoss(reduction='batchmean')  # gives better BLEU score than "mean"
@@ -171,7 +185,7 @@ def train_transformer(training_config):
                 writer.add_scalar('bleu_score', bleu_score, epoch)
 
     # Save the latest transformer in the binaries directory
-    torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(BINARIES_PATH, utils.get_available_binary_name()))
+    torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(BINARIES_PATH, 'replacement_layer_transformer_FF_large'))
 
 
 if __name__ == "__main__":
@@ -198,6 +212,11 @@ if __name__ == "__main__":
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
     parser.add_argument("--checkpoint_freq", type=int, help="checkpoint model saving (epoch) freq", default=1)
     parser.add_argument("--start_point", type=int, help="checkpoint model (epoch) where to resume training from", default=0)
+    parser.add_argument("--substitute_class", type=nn.Module, help="class that substitutes attention e.g. FF_large", default=FF_models.FFNetwork_large)
+    parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = "/cluster/scratch/vbozic/models/checkpoints")
+    parser.add_argument("--layer", help = "If layer is not specified, all layers are substituted", default = None)
+    parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=20)
+    parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["sublayer", "mha_only", "mha_separate_heads", "none"], default="sublayer")
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
     training_config = dict()

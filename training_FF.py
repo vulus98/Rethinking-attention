@@ -277,11 +277,11 @@ def collate_batch(batch):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=41)
+    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=61)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_PATH)
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
     parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=20)
-    parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=5)
+    parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=1)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
