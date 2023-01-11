@@ -33,11 +33,14 @@ def substitute_mha_only(baseline_transformer, substitute_class, substitute_model
     layers = [int(layers)] if layers is not None else range(6)
     print(layers)
     for l in layers:
-        ff_net = FF_net()
+        ff_net = FF_net().to(device)
         if not test:
             model_path=os.path.join(substitute_model_path, f'l{l}', MHA_ONLY_CHECKPOINT_FORMAT.format(epoch, l))
+            print(f"Loading weights from {model_path}")
             model_state = torch.load(model_path)
             ff_net.load_state_dict(model_state)
+        else:
+            print("Test uninitialized")
         ff_net.eval()
         replace_mha(baseline_transformer, ff_net, l, device)
     
@@ -60,8 +63,10 @@ def substitute_mha(baseline_transformer, substitute_class, substitute_model_path
 
 def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, t):
     if t == "mha_only":
+        print("Substitute mha only")
         substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layer, epoch)
     if t == "mha":
+        print("Substitute mha layer")
         substitute_mha(baseline_transformer, substitute_class, substitute_model_path, layer, epoch)
 
 def evaluate_transformer(evaluate_config):
@@ -98,7 +103,11 @@ def evaluate_transformer(evaluate_config):
                              evaluate_config["layer"],
                              evaluate_config["epoch"],
                              evaluate_config["substitute_type"]) 
-
+    else:
+        print("#"*100)
+        print("\n\t NO SUBSTITUTION \n")
+        print("#"*100)
+        
     # Step 4: Compute BLEU
     with torch.no_grad():
         utils.calculate_bleu_score(baseline_transformer, val_token_ids_loader, trg_field_processor)
@@ -132,6 +141,7 @@ if __name__ == "__main__":
     evaluate_config = dict()
     for arg in vars(args):
         evaluate_config[arg] = getattr(args, arg)
+    print(evaluate_config)
     evaluate_config['num_warmup_steps'] = num_warmup_steps
 
     # Train the original transformer model
