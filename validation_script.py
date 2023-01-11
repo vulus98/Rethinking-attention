@@ -44,13 +44,14 @@ def substitute_mha_only(baseline_transformer, substitute_class, substitute_model
         ff_net.eval()
         replace_mha(baseline_transformer, ff_net, l, device)
     
-def substitute_mha(baseline_transformer, substitute_class, substitute_model_path, layers, epoch):
+def substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layers, epoch):
     import models.definitions.mha_FF as m #TODO: place you FF_net definitions in this file
     FF_net = getattr(m, substitute_class)
     print(f"Substituing attention with {FF_net}")
     mha_to_mha2(baseline_transformer)
     layers = [int(layers)] if layers is not None else range(6)
     print(layers)
+    # Step 3: Substitute attention layers   
     for l in layers:
         ff_net = FF_net()
         if not test:
@@ -58,16 +59,16 @@ def substitute_mha(baseline_transformer, substitute_class, substitute_model_path
             model_state = torch.load(model_path)
             ff_net.load_state_dict(model_state)
         ff_net.eval()
-        replace_mha(baseline_transformer, ff_net, l, device)
+        replace_sublayer(baseline_transformer, ff_net, l, device)
     
 
 def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, t):
     if t == "mha_only":
         print("Substitute mha only")
         substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layer, epoch)
-    if t == "mha":
+    if t == "sublayer":
         print("Substitute mha layer")
-        substitute_mha(baseline_transformer, substitute_class, substitute_model_path, layer, epoch)
+        substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch)
 
 def evaluate_transformer(evaluate_config):
     # Step 1: Prepare data loaders
@@ -95,6 +96,8 @@ def evaluate_transformer(evaluate_config):
     model_state = torch.load(model_path)
     baseline_transformer.load_state_dict(model_state["state_dict"], strict=True)
     baseline_transformer.eval()
+    
+     
     # Step 3: substitute attention
     if evaluate_config["substitute_type"] != "none":
         substitute_attention(baseline_transformer, 
@@ -133,7 +136,7 @@ if __name__ == "__main__":
     parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth")
     parser.add_argument("--layer", help = "If layer is not specified, all layers are substituted", default = None)
     parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.")
-    parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["mha", "mha_only", "mha_separate_heads", "none"], default="none")
+    parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["sublayer", "mha_only", "mha_separate_heads", "none"], default="none")
     
     # Decoding related args
     args = parser.parse_args()
