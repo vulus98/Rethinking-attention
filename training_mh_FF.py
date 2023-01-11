@@ -43,11 +43,11 @@ class FFNetwork_small(nn.ModuleList):
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
         self.layers=list()
-        widths=[1,1,2,2,4,4,2,2,1,1]
+        widths=[1,2,2,1]
         self.depth=len(widths)-1
         self.layers=nn.ModuleList()
         for i in range(self.depth):
-            self.layers.extend([nn.LayerNorm(self.width//widths[i]),nn.Linear(self.width//widths[i], self.width//widths[i+1])])
+            self.layers.extend([nn.LayerNorm(self.width * widths[i]),nn.Linear(self.width * widths[i], self.width * widths[i+1])])
             if(i<self.depth-1):
                 self.layers.append(nn.LeakyReLU())
     def forward(self,data,mask):
@@ -147,7 +147,8 @@ def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", dev =
     
     
 def training_replacement_FF(params):
-    model=FFNetwork()#.to(device)
+    model=FFNetwork_small().to(device)
+    # print(model)
     #model.init_weights()
     model.train(True)
     print("FF model created")
