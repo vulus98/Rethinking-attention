@@ -131,7 +131,7 @@ class FFNetwork(nn.ModuleList):
                 layer.bias.data.fill_(0.01)
 
 # TODO: set t = "train", "val" useful for debugging
-def prepare_data(data_path, head = 0, chosen_layer = 0, batch_size = 5, t = "val", dev = False):
+def prepare_data(data_path, head = 0, chosen_layer = 0, batch_size = 5, t = "train", dev = False):
     if t not in ["train", "test", "val"]:
         raise ValueError("ERROR: t must be train, test, or val.")
     in_path =   os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_v_inputs_{t}")
@@ -144,38 +144,39 @@ def prepare_data(data_path, head = 0, chosen_layer = 0, batch_size = 5, t = "val
     
     
 def training_replacement_FF(params):
-    model=FFNetwork().to(device)
-    #model.init_weights()
-    model.train(True)
-    print("FF model created")
-    lr_optimizer = Adam(model.parameters(), lr=0.0001,betas=(0.9, 0.98), eps=1e-9)
-    print("Preparing data")
-    data_loader=prepare_data(params['dataset_path'], chosen_layer = params['num_of_curr_trained_layer'], batch_size = params["batch_size"]) 
-    # TODO: loop over heads, prepare data for the head, train
-    mse_loss=nn.MSELoss()
-    # mean_abs_percentage_error = MeanAbsolutePercentageError()
-    for epoch in range(params['num_of_epochs']):
-        print("Epoch: ",epoch)
-        epoch_loss=0
-        num_embeddings=0
-        mapes = []
-        start = time.time()
-        for (data,label, mask) in data_loader:
-            lr_optimizer.zero_grad()
-            pred=model(data,mask)
-            with torch.no_grad():
-                num_embeddings+=torch.sum(torch.flatten(mask)).item()
-                loss_normalizer=torch.sum(torch.flatten(mask)).item()/(mask.shape[0]*mask.shape[1])
-            loss=mse_loss(label,pred)/loss_normalizer
-            loss.backward()
-            lr_optimizer.step()
-            with torch.no_grad():
-                epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
-                mapes.append(MAPE(label, pred))
-        if epoch % 20 == 0:
-            ckpt_model_name = f"ff_network_{epoch + 1}_layer_{params['num_of_curr_trained_layer']}.pth"
-            torch.save(model.state_dict(), os.path.join(params["checkpoints_folder"], ckpt_model_name))
-        print(f"Loss per embedding element:{epoch_loss/num_embeddings}, MAPE: {MAPE(label, pred)}, time: {time.time() - start}")
+    for head in range(8):
+        model=FFNetwork()
+        model.train(True)
+        print("FF model created")
+        lr_optimizer = Adam(model.parameters(),betas=(0.9, 0.98), eps=1e-9)
+        print("Preparing data")
+        data_loader=prepare_data(params['dataset_path'], head=head, chosen_layer = params['num_of_curr_trained_layer'], batch_size = params["batch_size"]) 
+        # TODO: loop over heads, prepare data for the head, train
+        mse_loss=nn.MSELoss()
+        # mean_abs_percentage_error = MeanAbsolutePercentageError()
+        for epoch in range(params['num_of_epochs']):
+            print("Epoch: ",epoch)
+            epoch_loss=0
+            num_embeddings=0
+            mapes = []
+            start = time.time()
+            for (data,label, mask) in data_loader:
+                print(data.shape, label.shape, mask.shape)
+                lr_optimizer.zero_grad()
+                pred=model(data,mask)
+                with torch.no_grad():
+                    num_embeddings+=torch.sum(torch.flatten(mask)).item()
+                    loss_normalizer=torch.sum(torch.flatten(mask)).item()/(mask.shape[0]*mask.shape[1])
+                loss=mse_loss(label,pred)/loss_normalizer
+                loss.backward()
+                lr_optimizer.step()
+                with torch.no_grad():
+                    epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
+                    mapes.append(MAPE(label, pred))
+            if epoch % 20 == 0:
+                ckpt_model_name = f"ff_network_{0}.pth".format(epoch)
+                torch.save(model.state_dict(), os.path.join("layer{0}_head{1}".format(params["num_of_curr_trained_layer"],head), ckpt_model_name))
+            print(f"Loss per embedding element:{epoch_loss/num_embeddings}, MAPE: {MAPE(label, pred)}, time: {time.time() - start}")
 
 class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
     # NOTE: added h to specify which head to use
@@ -308,14 +309,7 @@ if __name__ == "__main__":
     for arg in vars(args):
         training_config[arg] = getattr(args, arg)
     print("Training arguments parsed")
-    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"mha" ,training_config["checkpoints_folder_name"])
+    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"mha")
     os.makedirs(training_config["checkpoints_folder"], exist_ok = True)
     print(training_config["checkpoints_folder"])
-    
-    # TODO: remove this, only left so that you can run this once and see the shape of the data
-    # run with: python3 training_mh_separate_heads.py --checkpoints_folder mh_separate/test
-    print(training_config)
-    data_loader=prepare_data(training_config['dataset_path'],head = 0 ,chosen_layer = training_config['num_of_curr_trained_layer'],batch_size = training_config["batch_size"]) 
-    for x in data_loader:
-        break
     training_replacement_FF(training_config)

@@ -108,7 +108,8 @@ def evaluate_transformer(evaluate_config):
                              evaluate_config["substitute_model_path"], 
                              evaluate_config["layer"],
                              evaluate_config["epoch"],
-                             evaluate_config["substitute_type"]) 
+                             evaluate_config["substitute_type"],
+                             evaluate_config["untrained"]) 
     else:
         print("#"*100)
         print("\n\t NO SUBSTITUTION \n")
@@ -138,9 +139,9 @@ if __name__ == "__main__":
     parser.add_argument("--substitute_class", type=nn.Module, help="class that substitutes attention e.g. FF_large", default=FF_models.FFNetwork_large)
     parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = "/cluster/scratch/vbozic/models/checkpoints")
     parser.add_argument("--layer", help = "If layer is not specified, all layers are substituted", default = None)
-    parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=20)
+    parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=60)
     parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["sublayer", "mha_only", "mha_separate_heads", "none"], default="sublayer")
-    
+    parser.add_argument("--untrained", type=bool, default = False)
     # Decoding related args
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary

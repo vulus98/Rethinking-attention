@@ -19,7 +19,7 @@ BIG_MODEL_LABEL_SMOOTHING_VALUE = 0.1
 SCRATCH = os.environ.get('SCRATCH')
 CHECKPOINTS_SCRATCH = os.path.join(SCRATCH, 'models', 'checkpoints')
 CHECKPOINTS_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'checkpoints')
-CHECKPOINTS_SCRATCH = os.path.join(SCRATCH, 'models', 'checkpoints')
+
 
 BINARIES_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'binaries')
 FF_MODELS_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'models', 'binaries','ff')
