@@ -220,3 +220,30 @@ class FFNetwork(nn.ModuleList):
             if(layer==nn.Linear):
                 nn.init.uniform_(layer.weight)
                 layer.bias.data.fill_(0.01)
+
+class FFNetwork_decoder_shrink128(nn.ModuleList):
+    def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
+        super(FFNetwork_decoder_shrink128, self).__init__()
+        self.sentence_length=sentence_length
+        self.model_dimension=model_dimension
+        self.width=self.sentence_length*self.model_dimension
+        widths=[1,128,1]
+        self.depth=len(widths)-1
+        self.layers=nn.ModuleList()
+        for i in range(self.depth):
+            self.layers.extend([nn.LayerNorm(self.width // widths[i]),nn.Linear(self.width // widths[i], self.width // widths[i+1])])
+            if(i<self.depth-1):
+                self.layers.append(nn.LeakyReLU())
+            else:
+                self.layers[-1] = nn.Linear(self.width // widths[i], model_dimension)
+                
+    def forward(self,data,mask:torch.Tensor):
+        mask = mask.squeeze().repeat_interleave(self.model_dimension, dim = -1)
+        data = torch.reshape(data, (data.shape[0],data.shape[1]*data.shape[2]))
+        outputs = []
+        for i in range(mask.shape[1]):
+            o = data * mask[:, i, :]
+            for layer in self.layers:
+                o = layer(o)
+            outputs.append(o)
+        return torch.stack(outputs, dim = 1)

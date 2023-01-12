@@ -9,12 +9,12 @@ from torch.optim import Adam
 from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_SCRATCH, MHA_ONLY_CHECKPOINT_FORMAT
 from torch.nn.utils.rnn import pad_sequence
 import time
+from torch.nn.functional import pad
 # from torchmetrics import MeanAbsolutePercentageError
 import models.definitions.mha_only_FF as FF_models
 
 DATA_PATH=os.path.join(SCRATCH, "mha_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
-
 def MAPE(target, output):
     #Mean Absolute Percentage Error
 
@@ -22,16 +22,18 @@ def MAPE(target, output):
         relative_error = torch.abs(output - target) / torch.max(torch.abs(target), torch.ones(output.shape, device = device)*1e-32)
         return torch.mean(relative_error)
          
-def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", dev = False):
+def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", decoder = False):
     if t not in ["train", "test", "val"]:
         raise ValueError("ERROR: t must be train, test, or val.")
     in_path =   os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_v_inputs_{t}")
     out_path =  os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_outputs_{t}")
     mask_path = os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_masks_{t}")
-    dataset = FixedWordsInterResultsDataset(in_path, out_path, mask_path, MAX_LEN)
-    if dev:
-        dataset, _ = dataset = random_split(dataset, [0.2, 0.8])
-    return DataLoader(dataset,  collate_fn=collate_batch, batch_size= batch_size)
+    if not decoder:
+        dataset = FixedWordsInterResultsDataset(in_path, out_path, mask_path, MAX_LEN)
+        return DataLoader(dataset,  collate_fn=collate_batch, batch_size= batch_size)
+    else:
+        dataset = AttentionDecoderDataset(in_path, out_path, mask_path, MAX_LEN)
+        return DataLoader(dataset, collate_fn=collate_batch_decoder, batch_size = batch_size )
     
     
 def training_replacement_FF(params):
@@ -46,7 +48,7 @@ def training_replacement_FF(params):
     print("FF model created")
     lr_optimizer = Adam(model.parameters(), lr=0.0001,betas=(0.9, 0.98), eps=1e-9)
     print("Preparing data")
-    data_loader=prepare_data(params['dataset_path'], chosen_layer = params['num_of_curr_trained_layer'], batch_size = params["batch_size"]) 
+    data_loader=prepare_data(params['dataset_path'], chosen_layer = params['num_of_curr_trained_layer'], batch_size = params["batch_size"], decoder = params["decoder"]) 
       
     mse_loss=nn.MSELoss()
     # mean_abs_percentage_error = MeanAbsolutePercentageError()
@@ -150,7 +152,95 @@ class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
 
     def emb_size(self):
         return self.input.shape[1]
+
+class AttentionDecoderDataset(torch.utils.data.Dataset):
+    def __init__(self, input_path, output_path, mask_path, n, t = "max"):
+        print(f"Starting to load datasets from {input_path} and {output_path} and {mask_path}")
+        start = time.time()
+
+        self.n = n
+        if t != "max" and t != "exact":
+            raise ValueError("ERROR: t has to be either 'max' or 'exact'.")
+        self.t = t
+        self.input = []
+        self.output = []
+        if t == "max":
+            self.mask = []
+            mask_cache = f"{mask_path}_fixed_{n}_{t}.cache"
+
+        in_cache = f"{input_path}_fixed_{n}_{t}.cache"
+        out_cache = f"{output_path}_fixed_{n}_{t}.cache"
+
+        if os.path.exists(in_cache) and os.path.exists(out_cache) and (t == "exact" or os.path.exists(mask_cache)):
+            self.input = torch.load(in_cache)
+            self.output = torch.load(out_cache)
+            if t == "max":
+                self.mask = torch.load(mask_cache)
+                print(f"Finished loading mask dataset from cache {mask_cache}")
+            print(f"Finished loading datasets from cache {in_cache} and {out_cache}")
+            print(f"Loaded {len(self.output)} samples in {time.time() - start}s")
+            return
+
+        inf = open(input_path, "rb")
+        outf = open(output_path, "rb")
+        maskf = open(mask_path, "rb")
+        try:
+            while(True):
+                # i represents one batch of sentences -> dim: batch size x padded sentence length x embedding size
+                i = torch.from_numpy(np.load(inf))
+                m = torch.from_numpy(np.load(maskf))
+                m = torch.squeeze(m)
+                o = torch.from_numpy(np.load(outf))
+                l = torch.max(torch.sum(m, dim = -1), dim = -1).values
+                for j in range(i.shape[0]):
+                    if t == "max":
+                        if l[j] <= n:
+                            self.input.append(i[j, :l[j]])
+                            self.output.append(o[j,:,:l[j]])
+                            self.mask.append(m[j,  :l[j], :l[j]])
+                    else:
+                        if l[j] == n:
+                            self.input.append(i[j, :n])
+                            self.output.append(o[j, :n])
+        except (UnpicklingError, ValueError):
+            print(f"Finished loading datasets from {input_path} and {output_path}")
+            print(f"Loaded {len(self.output)} samples in {time.time() - start}s")
+        finally:
+            inf.close()
+            outf.close()
+            maskf.close()
+        # self.input = torch.cat(self.input, dim=0)
+        # self.output = torch.cat(self.output, dim=0)
+        torch.save(self.input, in_cache)
+        torch.save(self.output, out_cache)
+        if t == "max":
+            # self.mask = torch.cat(self.mask, dim=0)
+            torch.save(self.mask, mask_cache)
+
+    def __len__(self):
+        return len(self.input)
+
+    def __getitem__(self, idx):
+        # if we have exactly the same length, there is no need for padding/masking
+        if self.t == "exact":
+            return (self.input[idx], self.output[idx])
+        return (self.input[idx], self.output[idx], self.mask[idx])
+
+    def emb_size(self):
+        return self.input.shape[1]
+
+def collate_batch_decoder(batch):
+    NH = batch[0][1].shape[0]
+    HD = batch[0][1].shape[2]
+    inputs  = pad_sequence([x[0] for x in batch], batch_first=True, padding_value=0)
+    outputs = pad_sequence([x[1].transpose(0,1).reshape(-1, NH * HD) for x in batch], batch_first=True, padding_value=0) # this reshaping must be transfered to the adapter as well
     
+    # Pad to fixed length
+    masks   = pad_sequence([pad(x[2], (0, MAX_LEN - x[2].shape[-2], 0,MAX_LEN - x[2].shape[-1])) for x in batch], batch_first=True, padding_value=0) 
+    inputs = torch.cat([inputs, torch.zeros(pad_shape(inputs))], dim = 1).to(device)
+    outputs = torch.cat([outputs, torch.zeros(pad_shape(outputs))], dim = 1).to(device)    
+    return inputs, outputs, masks
+
 def pad_shape(batch, masks = False):
     shape = batch.shape
     if masks:
@@ -195,6 +285,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoints_folder_name", type = str, help="folder name relative to checkpoint folder")
     parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/mha_only.py", required=True)
     parser.add_argument("--multi_device", action = "store_true")
+    parser.add_argument("--decoder", action = "store_true")
     
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
