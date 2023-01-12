@@ -19,6 +19,7 @@ import copy
 import torch
 import numpy as np
 import torch.nn as nn
+from torch.nn.functional import pad
 
 
 from utils.constants import *
@@ -645,7 +646,7 @@ class AttentionSubstituteSeparateHeads(nn.Module):
         # 4. Unflatten and unpad
         # shape = BxNHxSxHD
         outputs = outputs.reshape((outputs.shape[0], outputs.shape[1], MAX_LEN, -1))
-        outputs, pad =  torch.split(outputs,[S, MAX_LEN - S] , dim = 2)   
+        outputs, padding =  torch.split(outputs,[S, MAX_LEN - S] , dim = 2)   
         # assert(np.prod(pad.shape) == (pad == 0).sum())
         return outputs 
 
@@ -825,12 +826,59 @@ class AttentionSubstitute(nn.Module):
         # 4. Unflatten and unpad
         # shape = BxNHxSxHD
         outputs = outputs.reshape((outputs.shape[0], MAX_LEN, -1, HD)).transpose(1,2)
-        outputs, pad =  torch.split(outputs,[S, MAX_LEN - S] , dim = 2)   
-        assert(np.prod(pad.shape) == (pad == 0).sum())
+        outputs, padding =  torch.split(outputs,[S, MAX_LEN - S] , dim = 2)   
+        assert(np.prod(padding.shape) == (padding == 0).sum())
         return outputs 
 
-def replace_mha(transformer: nn.Module, substitute: nn.Module, layer:int, device = "cuda"):
-    if not type(transformer.encoder.encoder_layers[layer].multi_headed_attention) == MultiHeadedAttention2:
-        raise TypeError("Use function mha_to_mha2 first")
-    transformer.encoder.encoder_layers[layer].multi_headed_attention.attention = AttentionSubstitute(substitute, device = device)
+def replace_mha(transformer: nn.Module, substitute: nn.Module, layer:int, device = "cuda", attention_type = "encoder"):
+    if attention_type == "encoder":
+        if not type(transformer.encoder.encoder_layers[layer].multi_headed_attention) == MultiHeadedAttention2:
+            raise TypeError("Use function mha_to_mha2 first")
+        transformer.encoder.encoder_layers[layer].multi_headed_attention.attention = AttentionSubstitute(substitute, device = device)  
+        
+    elif attention_type == "decoder_self": 
+            transformer.decoder.decoder_layers[layer].trg_multi_headed_attention.attention =  AttentionSubstituteDecoder(substitute, device)
+            
+    elif attention_type == "decoder_cross":
+        raise NotImplementedError()
+    
+    else:
+        raise ValueError("attention_type must be in ['encoder', 'decoder_self', 'decoder_cross']")
+    
     return transformer
+class AttentionSubstituteDecoder(nn.Module):
+    def __init__(self, FF_net:nn.Module, device = "cuda"):
+        """Substitutes mha with a single FF. 
+
+        Args:
+            ff_list (): Feed forward nets that compute the attention values
+        """
+        super().__init__()
+        self.ff = FF_net
+        self.device = device
+        
+    def forward(self, query, key, value, mask):
+        """This layer substitutes the Attention layer in mha2. 
+
+        Args:
+            query (Tensor): B x S x MD
+            key (Tensor):  B x S x MD
+            value (Tensor):  B x S x MD
+            mask (Tensor): B x 1 x 1 x S
+
+        Returns:
+            Tensor: B x NH x S x HD
+        """
+        S = value.shape[1]
+        B = len(value)
+        HD = BASELINE_MODEL_DIMENSION // BASELINE_MODEL_NUMBER_OF_HEADS
+        if value.shape[1] > 50:
+            print("mannaggia a me")
+        # 1. Pad to MAX_LEN
+        inputs = torch.cat([value, torch.zeros(pad_shape(value), device = self.device)], dim = 1)
+        mask = pad(mask, (0, MAX_LEN - mask.shape[-2], 0,MAX_LEN - mask.shape[-1]))
+        # 3. Compute
+        outputs = self.ff(inputs, mask)
+        outputs = outputs.reshape((outputs.shape[0], MAX_LEN, -1, HD)).transpose(1,2)
+        outputs, padding =  torch.split(outputs,[S, MAX_LEN - S] , dim = 2)   
+        return outputs 

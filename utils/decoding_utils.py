@@ -14,7 +14,7 @@ class DecodingMethod(enum.Enum):
     BEAM = 1
 
 
-def greedy_decoding(baseline_transformer, src_representations_batch, src_mask, trg_field_processor, max_target_tokens=100):
+def greedy_decoding(baseline_transformer, src_representations_batch, src_mask, trg_field_processor, max_target_tokens=MAX_LEN):
     """
     Supports batch (decode multiple source sentences) greedy decoding.
 
