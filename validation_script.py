@@ -30,7 +30,7 @@ def substitute_mha_only(baseline_transformer, substitute_class, substitute_model
     FF_net = getattr(m, substitute_class)
     print(f"Substituing attention with {FF_net}")
     mha_to_mha2(baseline_transformer)
-    layers = [int(layers)] if layers is not None else range(6)
+    layers = layers if layers is not None else range(6)    
     print(layers)
     for l in layers:
         ff_net = FF_net()
@@ -51,7 +51,7 @@ def substitute_sublayer(baseline_transformer, substitute_class, substitute_model
     FF_net = getattr(m, substitute_class)
     print(f"Substituing attention with {FF_net}")
     mha_to_mha2(baseline_transformer)
-    layers = [int(layers)] if layers is not None else range(6)
+    layers = layers if layers is not None else range(6)
     print(layers)
     # Step 3: Substitute attention layers   
     for l in layers:
@@ -105,7 +105,7 @@ def evaluate_transformer(evaluate_config):
         substitute_attention(baseline_transformer, 
                              evaluate_config["substitute_class"], 
                              evaluate_config["substitute_model_path"], 
-                             evaluate_config["layer"],
+                             evaluate_config["layers"],
                              evaluate_config["epoch"],
                              evaluate_config["substitute_type"],
                              multi_device = evaluate_config["multi_device"]) 
@@ -137,7 +137,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, help="target number of tokens in a src/trg batch", default=1500)
     parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FF_large")
     parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth")
-    parser.add_argument("--layer", help = "If layer is not specified, all layers are substituted", default = None)
+    parser.add_argument("--layers", nargs='+',type = int ,help = "If layer is not specified, all layers are substituted")
     parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.")
     parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["sublayer", "mha_only", "mha_separate_heads", "none"], default="none")
     parser.add_argument("--multi_device", action = "store_true")
