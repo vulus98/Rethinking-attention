@@ -676,17 +676,26 @@ class MultiHeadedAttention2(nn.Module):
 
         return token_representations
 
-def mha_to_mha2(transformer: Transformer, layers:list = [0,1,2,3,4,5]):
+def mha_to_mha2(transformer: Transformer, layers:list = [0,1,2,3,4,5], attention_type = "encoder"):
     """Substitutes MultiHeadedAttention with MultiHeadedAttention2. Useful to extract values before and after attention without the linear layer in the front.
 
     Args:
         transformer (Transformer): _description_
         layers (list): list of layers to modify. By default all mha in the encoders are substituted
     """
-    for l in layers:
-        transformer.encoder.encoder_layers[l].multi_headed_attention =  MultiHeadedAttention2(transformer.encoder.encoder_layers[l].multi_headed_attention)
-
-
+    if attention_type == "encoder":
+        for l in layers:
+            transformer.encoder.encoder_layers[l].multi_headed_attention =  MultiHeadedAttention2(transformer.encoder.encoder_layers[l].multi_headed_attention)
+            
+    elif attention_type == "decoder_self": 
+        for l in layers:
+            transformer.decoder.decoder_layers[l].trg_multi_headed_attention =  MultiHeadedAttention2(transformer.decoder.decoder_layers[l].trg_multi_headed_attention)
+            
+    elif attention_type == "decoder_cross":
+        for l in layers:
+            transformer.decoder.decoder_layers[l].src_multi_headed_attention =  MultiHeadedAttention2(transformer.decoder.decoder_layers[l].src_multi_headed_attention)
+    else:
+        raise ValueError("attention_type must be in ['encoder', 'decoder_self', 'decoder_cross']")
 class AttentionWeights(nn.Module):
     def __init__(self, mha: MultiHeadedAttention):
         super().__init__()

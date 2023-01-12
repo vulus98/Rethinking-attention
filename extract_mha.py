@@ -7,7 +7,7 @@ import torch
 from torch import nn
 
 from models.definitions.transformer_model import Transformer
-from utils.data_utils import get_data_loaders, get_masks_and_count_tokens_src, get_src_and_trg_batches, DatasetType, LanguageDirection
+from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_masks_and_count_tokens_src, get_src_and_trg_batches, DatasetType, LanguageDirection, sample_text_from_loader
 import utils.utils as utils
 from utils.constants import *
 from models.definitions.transformer_model import mha_to_mha2
@@ -21,13 +21,29 @@ Extracted ouptut shape: B x NH x S x (MD/NH)
     
 """
 def extract_input_output(training_config):
+    output_path_encoder = os.path.join(training_config["output_path"], "encoder")
+    output_path_decoder_self = os.path.join(training_config["output_path"], "decoder_self")
+    output_path_decoder_cross = os.path.join(training_config["output_path"], "decoder_cross")
+    os.makedirs(training_config['output_path'], exist_ok=True)
+    os.makedirs(output_path_encoder, exist_ok=True)
+    os.makedirs(output_path_decoder_self, exist_ok=True)
+    os.makedirs(output_path_decoder_cross, exist_ok=True)
+    
     prefix = f"{training_config['model_name']}_{training_config['dataset_name']}_{training_config['language_direction']}"
     # avoid appending to previously generated files
-    for f in os.listdir(MHA_OUTPUT_PATH):
-        full_name = f"{MHA_OUTPUT_PATH}/{f}"
+    for f in os.listdir(output_path_encoder):
+        full_name = f"{output_path_encoder}/{f}"
         if os.path.isfile(full_name) and f.startswith(prefix):
             os.remove(full_name)
-
+    for f in os.listdir(output_path_decoder_self):
+        full_name = f"{output_path_decoder_self}/{f}"
+        if os.path.isfile(full_name) and f.startswith(prefix):
+            os.remove(full_name)
+    for f in os.listdir(output_path_decoder_cross):
+        full_name = f"{output_path_decoder_cross}/{f}"
+        if os.path.isfile(full_name) and f.startswith(prefix):
+            os.remove(full_name)
+            
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
     train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
         training_config['dataset_path'],
@@ -51,10 +67,13 @@ def extract_input_output(training_config):
     checkpoint = torch.load(training_config["path_to_weights"])
     transformer.load_state_dict(checkpoint['state_dict'])
     
-    mha_to_mha2(transformer)
+    mha_to_mha2(transformer, attention_type = "encoder")
+    mha_to_mha2(transformer, attention_type = "decoder_self")
+    mha_to_mha2(transformer, attention_type = "decoder_cross")
+    
     transformer.eval()
-
-    def getf(i, suffix):
+    
+    def getf(i, suffix, output_path):
         def write_input_output(model, input, output):
             # input is a tuple  (queries, keys, values, mask)
             # mask is ignored, queries, keys and values are stored separately
@@ -63,11 +82,11 @@ def extract_input_output(training_config):
             k = input[1].cpu().detach().numpy() 
             v = input[2].cpu().detach().numpy() 
             out = output.cpu().detach().numpy()
-            in_filename_q = f"{MHA_OUTPUT_PATH}/{prefix}_layer{i}_q_inputs_{suffix}"
-            in_filename_k = f"{MHA_OUTPUT_PATH}/{prefix}_layer{i}_k_inputs_{suffix}"
-            in_filename_v = f"{MHA_OUTPUT_PATH}/{prefix}_layer{i}_v_inputs_{suffix}"
+            in_filename_q = f"{output_path}/{prefix}_layer{i}_q_inputs_{suffix}"
+            in_filename_k = f"{output_path}/{prefix}_layer{i}_k_inputs_{suffix}"
+            in_filename_v = f"{output_path}/{prefix}_layer{i}_v_inputs_{suffix}"
             
-            out_filename = f"{MHA_OUTPUT_PATH}/{prefix}_layer{i}_outputs_{suffix}"
+            out_filename = f"{output_path}/{prefix}_layer{i}_outputs_{suffix}"
             # ad-hoc appending to the same file
             with open(in_filename_q, 'ab') as f:
                 np.save(f, q)
@@ -82,23 +101,52 @@ def extract_input_output(training_config):
     def extract(token_ids_loader, suffix):
         print(f"Extracting {suffix}")
         hook_handles = []
+        # Register hooks on encoder self attention
         for (i, l) in enumerate(transformer.encoder.encoder_layers):
-            h = l.multi_headed_attention.attention.register_forward_hook(getf(i, suffix))
+            h = l.multi_headed_attention.attention.register_forward_hook(getf(i, suffix, output_path_encoder))
             hook_handles.append(h)
-        mask_filename = f"{MHA_OUTPUT_PATH}/{prefix}_masks_{suffix}"
-
+        mask_filename_enc = f"{output_path_encoder}/{prefix}_masks_{suffix}"
+        
+        # register hooks on decoder self attention
+        for (i, l) in enumerate(transformer.decoder.decoder_layers):
+            h = l.trg_multi_headed_attention.attention.register_forward_hook(getf(i, suffix, output_path_decoder_self))
+            hook_handles.append(h)
+        mask_filename_dec_self = f"{output_path_decoder_self}/{prefix}_masks_{suffix}"
+        
+        # register hooks on decoder cross attention
+        for (i, l) in enumerate(transformer.decoder.decoder_layers):
+            h = l.src_multi_headed_attention.attention.register_forward_hook(getf(i, suffix, output_path_decoder_cross))
+            hook_handles.append(h)
+        mask_filename_dec_cross = f"{output_path_decoder_cross}/{prefix}_masks_{suffix}"
+        mask_filename_dec_cross_src = f"{output_path_decoder_cross}/{prefix}_masks_{suffix}_src"
+        
+        
         for batch_idx, token_ids_batch in enumerate(token_ids_loader):
             if (batch_idx % training_config['console_log_freq'] == 0):
                 print(f"Current batch in {suffix}: {batch_idx}")
-            src_token_ids_batch, _, _ = get_src_and_trg_batches(token_ids_batch)
-            src_mask, num_src_tokens = get_masks_and_count_tokens_src(src_token_ids_batch, pad_token_id)
-            with open(mask_filename, 'ab') as f:
+                
+            src_token_ids_batch, trg_token_ids_batch_input, _ = get_src_and_trg_batches(token_ids_batch)
+            src_mask, trg_mask, num_src_tokens, num_trg_tokens = get_masks_and_count_tokens(src_token_ids_batch, trg_token_ids_batch_input, pad_token_id, device)
+            
+
+            with open(mask_filename_enc, 'ab') as f:
                 np.save(f, src_mask.cpu().detach().numpy())
-            transformer.encode(src_token_ids_batch, src_mask)
+                
+            with open(mask_filename_dec_self, 'ab') as f:
+                np.save(f, trg_mask.cpu().detach().numpy())
+            
+            with open(mask_filename_dec_cross, 'ab') as f:
+                np.save(f, trg_mask.cpu().detach().numpy())
+            
+            with open(mask_filename_dec_cross_src, 'ab') as f:
+                np.save(f, src_mask.cpu().detach().numpy())
+            
+            
+            transformer.forward(src_token_ids_batch, trg_token_ids_batch_input, src_mask, trg_mask)
 
         for h in hook_handles:
             h.remove()
-
+            
     extract(val_token_ids_loader, "val")
     extract(train_token_ids_loader, "train")
     extract(test_token_ids_loader, "test")
@@ -121,6 +169,7 @@ if __name__ == "__main__":
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
     parser.add_argument("--model_name", type=str, help="name of the model", required=True)
     parser.add_argument("--path_to_weights", type=str, help="path to the weights to load", required=True)
+    parser.add_argument("--output_path", type = str, help = "path where the extracted values should be saved", required=True)
     args = parser.parse_args()
 
     # Wrapping training configuration into a dictionary
@@ -128,5 +177,7 @@ if __name__ == "__main__":
     for arg in vars(args):
         training_config[arg] = getattr(args, arg)
     training_config['num_warmup_steps'] = num_warmup_steps
-
+    output_path_encoder = os.path.join(training_config["output_path"], "encoder")
+    output_path_decoder_self = os.path.join(training_config["output_path"], "decoder_self")
+    output_path_decoder_cross = os.path.join(training_config["output_path"], "decoder_cross")    
     extract_input_output(training_config)
