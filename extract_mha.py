@@ -169,7 +169,7 @@ if __name__ == "__main__":
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
     parser.add_argument("--model_name", type=str, help="name of the model", required=True)
     parser.add_argument("--path_to_weights", type=str, help="path to the weights to load", required=True)
-    parser.add_argument("--output_path", type = str, help = "path where the extracted values should be saved", required=True)
+    parser.add_argument("--output_path", type = str, help = "path where the extracted values should be saved", default = MHA_OUTPUT_PATH)
     args = parser.parse_args()
 
     # Wrapping training configuration into a dictionary

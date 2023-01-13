@@ -25,13 +25,20 @@ def MAPE(target, output):
 def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", decoder = False):
     if t not in ["train", "test", "val"]:
         raise ValueError("ERROR: t must be train, test, or val.")
-    in_path =   os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_v_inputs_{t}")
-    out_path =  os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_outputs_{t}")
-    mask_path = os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_masks_{t}")
+    if t == "val":
+        print("#"*100)
+        print("ATTENTION VALIDATION USED IN TRAINING, ONLY OK FOR DEBUGGING")
+        print("#"*100)
     if not decoder:
+        in_path =   os.path.join(data_path,"encoder", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_v_inputs_{t}")
+        out_path =  os.path.join(data_path,"encoder", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_outputs_{t}")
+        mask_path = os.path.join(data_path,"encoder", f"128emb_20ep_IWSLT_E2G_masks_{t}")
         dataset = FixedWordsInterResultsDataset(in_path, out_path, mask_path, MAX_LEN)
         return DataLoader(dataset,  collate_fn=collate_batch, batch_size= batch_size)
     else:
+        in_path =   os.path.join(data_path,"decoder_self", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_v_inputs_{t}")
+        out_path =  os.path.join(data_path,"decoder_self", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_outputs_{t}")
+        mask_path = os.path.join(data_path,"decoder_self", f"128emb_20ep_IWSLT_E2G_masks_{t}")
         dataset = AttentionDecoderDataset(in_path, out_path, mask_path, MAX_LEN)
         return DataLoader(dataset, collate_fn=collate_batch_decoder, batch_size = batch_size )
     
@@ -189,7 +196,7 @@ class AttentionDecoderDataset(torch.utils.data.Dataset):
                 # i represents one batch of sentences -> dim: batch size x padded sentence length x embedding size
                 i = torch.from_numpy(np.load(inf))
                 m = torch.from_numpy(np.load(maskf))
-                m = torch.squeeze(m)
+                m = torch.squeeze(m, dim = 1)
                 o = torch.from_numpy(np.load(outf))
                 l = torch.max(torch.sum(m, dim = -1), dim = -1).values
                 for j in range(i.shape[0]):
@@ -232,14 +239,20 @@ class AttentionDecoderDataset(torch.utils.data.Dataset):
 def collate_batch_decoder(batch):
     NH = batch[0][1].shape[0]
     HD = batch[0][1].shape[2]
+    batch_size = len(batch)
     inputs  = pad_sequence([x[0] for x in batch], batch_first=True, padding_value=0)
     outputs = pad_sequence([x[1].transpose(0,1).reshape(-1, NH * HD) for x in batch], batch_first=True, padding_value=0) # this reshaping must be transfered to the adapter as well
-    
-    # Pad to fixed length
-    masks   = pad_sequence([pad(x[2], (0, MAX_LEN - x[2].shape[-2], 0,MAX_LEN - x[2].shape[-1])) for x in batch], batch_first=True, padding_value=0) 
+    trg_padding_mask = pad_sequence([x[2][-1] for x in batch], batch_first=True, padding_value=0)
     inputs = torch.cat([inputs, torch.zeros(pad_shape(inputs))], dim = 1).to(device)
     outputs = torch.cat([outputs, torch.zeros(pad_shape(outputs))], dim = 1).to(device)    
-    return inputs, outputs, masks
+    trg_padding_mask = torch.cat([trg_padding_mask, torch.zeros(pad_shape(trg_padding_mask, masks = True), dtype=torch.bool)], dim = 1).view(batch_size, 1, -1).to(device)
+    
+    # Pad to fixed length    
+    trg_no_look_forward_mask = torch.triu(torch.ones((1, MAX_LEN, MAX_LEN), device=device) == 1).transpose(1, 2)
+
+    # logic AND operation (both padding mask and no-look-forward must be true to attend to a certain target token)
+    trg_mask = trg_padding_mask & trg_no_look_forward_mask  # final shape = (B, T, T)
+    return inputs, outputs, trg_mask    
 
 def pad_shape(batch, masks = False):
     shape = batch.shape
