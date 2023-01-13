@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --output=sbatch_log/%j.out
-#SBATCH --gpus=4
+#SBATCH --gpus=1
 #SBATCH --mem-per-cpu=16000
 #SBATCH --gres=gpumem:20g
 #SBATCH --time 1000

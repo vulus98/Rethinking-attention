@@ -13,7 +13,6 @@ import time
 import torch
 import torch.nn as nn
 from tensorboardX import SummaryWriter
-from training_FF import FFNetwork
 import models.definitions.mha_FF as FF_models
 from models.definitions.transformer_model import Transformer, mha_to_mha2, replace_mha, replace_sublayer
 from models.definitions.transformer_model import Transformer
@@ -56,7 +55,7 @@ def substitute_sublayer(baseline_transformer, substitute_class, substitute_model
     print(layers)
     # Step 3: Substitute attention layers   
     for l in layers:
-        ff_net = FF_net()
+        ff_net = FF_net().to(device)
         if not untrained:
             model_path=os.path.join(substitute_model_path, 'layer{0}'.format(l), MHA__CHECKPOINT_FORMAT.format(epoch)) # TODO: modify according to your naming
             model_state = torch.load(model_path)
@@ -67,7 +66,7 @@ def substitute_sublayer(baseline_transformer, substitute_class, substitute_model
         replace_sublayer(baseline_transformer, ff_net, l, device)
     
 
-def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, t, multi_device = False):
+def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch,t, untrained=False):
     if t == "mha_only":
         print("Substitute mha only")
         substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, multi_device)
@@ -138,9 +137,9 @@ if __name__ == "__main__":
     # Cache files and datasets are downloaded here during training, keep them in sync for speed
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
     parser.add_argument("--batch_size", type=int, help="target number of tokens in a src/trg batch", default=1500)
-    parser.add_argument("--substitute_class", type=nn.Module, help="class that substitutes attention e.g. FF_large", default=FF_models.FFNetwork_large)
+    parser.add_argument("--substitute_class", type=nn.Module, help="class that substitutes attention e.g. FF_large", default=FF_models.FFNetwork_small)
     parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = "/cluster/scratch/vbozic/models/checkpoints")
-    parser.add_argument("--layer", help = "If layer is not specified, all layers are substituted", default = None)
+    parser.add_argument("--layers", help = "If layer is not specified, all layers are substituted", default = None)
     parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=60)
     parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["sublayer", "mha_only", "mha_separate_heads", "none"], default="sublayer")
     parser.add_argument("--untrained", type=bool, default = False)

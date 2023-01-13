@@ -85,9 +85,9 @@ def get_train_val_loop(baseline_transformer, custom_lr_optimizer, kl_div_loss, l
                     num_of_trg_tokens_processed = 0
 
                 # Save model checkpoint
-                if training_config['checkpoint_freq'] is not None and (epoch + 1) % training_config['checkpoint_freq'] == 0 and batch_idx == 0:
-                    ckpt_model_name = f"transformer_ckpt_epoch_{epoch + 1}.pth"
-                    torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
+                # if training_config['checkpoint_freq'] is not None and (epoch + 1) % training_config['checkpoint_freq'] == 0 and batch_idx == 0:
+                #     ckpt_model_name = f"transformer_ckpt_epoch_{epoch + 1}.pth"
+                #     torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
             else:
                 global_val_step += 1
 
@@ -107,8 +107,7 @@ def train_transformer(training_config):
         training_config['language_direction'],
         training_config['dataset_name'],
         training_config['batch_size'],
-        device,
-        max_len_train=MAX_LEN)
+        device)
 
     pad_token_id = src_field_processor.vocab.stoi[PAD_TOKEN]  # pad token id is the same for target as well
     src_vocab_size = len(src_field_processor.vocab)
@@ -123,6 +122,19 @@ def train_transformer(training_config):
         number_of_layers=BASELINE_MODEL_NUMBER_OF_LAYERS,
         dropout_probability=BASELINE_MODEL_DROPOUT_PROB
     ).to(device)
+    model_path = os.path.join(BINARIES_PATH, training_config['model_name'])
+    model_state = torch.load(model_path)
+    baseline_transformer.load_state_dict(model_state["state_dict"], strict=True)
+    baseline_transformer.train()
+
+    # reloading the data, filtering sentences of len>50
+     train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
+        training_config['dataset_path'],
+        training_config['language_direction'],
+        training_config['dataset_name'],
+        training_config['batch_size'],
+        device,
+        max_len_train=MAX_LEN)
 
     # Step 3: substitute attention
     if training_config["substitute_type"] != "none":
@@ -188,7 +200,7 @@ def train_transformer(training_config):
                 writer.add_scalar('bleu_score', bleu_score, epoch)
 
     # Save the latest transformer in the binaries directory
-    torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(BINARIES_PATH, 'replacement_layer_transformer_FF_large'))
+    torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(BINARIES_PATH, 'replacement_layer_transformer_FF_small'))
 
 
 if __name__ == "__main__":
@@ -209,18 +221,19 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_name", choices=[el.name for el in DatasetType], help='which dataset to use for training', default=DatasetType.IWSLT.name)
     parser.add_argument("--language_direction", choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.E2G.name)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
+    parser.add_argument("--model_name", type=str, help="transformer model name", default=r'transformer_128.pth')
 
     # Logging/debugging/checkpoint related (helps a lot with experimentation)
     parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=True)
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
     parser.add_argument("--checkpoint_freq", type=int, help="checkpoint model saving (epoch) freq", default=1)
     parser.add_argument("--start_point", type=int, help="checkpoint model (epoch) where to resume training from", default=0)
-    parser.add_argument("--substitute_class", type=nn.Module, help="class that substitutes attention e.g. FF_large", default=FF_models.FFNetwork_large)
+    parser.add_argument("--substitute_class", type=nn.Module, help="class that substitutes attention e.g. FF_large", default=FF_models.FFNetwork_small)
     parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = "/cluster/scratch/vbozic/models/checkpoints")
     parser.add_argument("--layer", help = "If layer is not specified, all layers are substituted", default = None)
     parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=20)
     parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["sublayer", "mha_only", "mha_separate_heads", "none"], default="sublayer")
-    parser.add_argument("--untrained", action = "store_true")
+    parser.add_argument("--untrained", type=bool, default = True)
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
     training_config = dict()
