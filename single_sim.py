@@ -20,7 +20,7 @@ from simulator import *
 def train_model(trial, train_data_set, val_data_set, device):
 
     nr_layers = trial.suggest_int("nr_layers", 4, 8)
-    nr_units = [trial.suggest_int(f"nr_units_{i}", 3, 7) for i in range(nr_layers-1)]
+    nr_units = [trial.suggest_int(f"nr_units_{i}", 2, 7) for i in range(nr_layers-1)]
     batch_size = 1024
 
     index_in = train_data_set.index_in
@@ -81,7 +81,7 @@ def train_model(trial, train_data_set, val_data_set, device):
         torch.save((model.state_dict(), optimizer.state_dict()), os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
     return val_loss
 
-def test_model(model, batch_size):
+def test_model(model, test_data_set):
     print(f"Starting to test model {model.name}")
     test_out_magnitude = torch.mean(torch.abs(test_data_set.output))
     print(f"test_out_magnitude: {test_out_magnitude}")
@@ -89,7 +89,7 @@ def test_model(model, batch_size):
     with torch.no_grad():
         model.eval()
         losses = []
-        for (batch_idx, (fr, to)) in enumerate(get_batches(test_data_set, batch_size)):
+        for (batch_idx, (fr, to)) in enumerate(get_batches(test_data_set, 1024)):
             inputs = test_data_set.input[fr:to]
             outputs = model(inputs)
             loss = criterion(outputs, test_data_set.output[fr:to])
@@ -108,7 +108,7 @@ def train(index_in, index_out):
     trainable = lambda t: train_model(t, train_data_set, val_data_set, device)
 
     study = optuna.create_study(direction="minimize")
-    study.optimize(trainable, n_trials=30)
+    study.optimize(trainable, n_trials=80)
 
     trial = study.best_trial
 
@@ -126,13 +126,13 @@ def train(index_in, index_out):
 
     model = AttentionSimulator(nr_layers, nr_units).to(device)
 
-    inst_name = f"{model.name}_bs{batch_size}_fr{index_in}_to{index_out}"
+    inst_name = f"{model.name}_bs1024_fr{index_in}_to{index_out}"
     ckpt_model_name = f"{inst_name}_ckpt_epoch_70.pth"
     model_state, _ = torch.load(os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
 
     model.load_state_dict(model_state)
 
-    test_model(model, test_data_set, 1024)
+    test_model(model, test_data_set)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
