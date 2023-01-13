@@ -122,7 +122,7 @@ def save_cache(cache_path, dataset):
 #
 
 
-def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, use_caching_mechanism=True, fix_length = None):
+def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, use_caching_mechanism=True, fix_length = None, max_len_train = 100):
     german_to_english = language_direction == LanguageDirection.G2E.name
     spacy_de = spacy.load('de_core_news_sm')
     spacy_en = spacy.load('en_core_web_sm')
@@ -141,7 +141,7 @@ def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, us
     trg_field_processor = Field(tokenize=trg_tokenizer, init_token=BOS_TOKEN, eos_token=EOS_TOKEN, pad_token=PAD_TOKEN, batch_first=True,fix_length = fix_length)
 
     fields = [('src', src_field_processor), ('trg', trg_field_processor)]
-    max_len = 100  # filter out examples that have more than MAX_LEN tokens
+    max_len = max_len_train  # filter out examples that have more than MAX_LEN tokens
     filter_pred = lambda x: len(x.src) <= max_len and len(x.trg) <= max_len
     filter_val_test = lambda x: len(x.src) <= MAX_LEN and len(x.trg) <= MAX_LEN
 
@@ -232,15 +232,15 @@ def batch_size_fn(new_example, count, sofar):
 
 # https://github.com/pytorch/text/issues/536#issuecomment-719945594 <- there is a "bug" in BucketIterator i.e. it's
 # description is misleading as it won't group examples of similar length unless you set sort_within_batch to True!
-def get_data_loaders(dataset_path, language_direction, dataset_name, batch_size, device):
-    train_dataset, val_dataset, test_dataset, src_field_processor, trg_field_processor = get_datasets_and_vocabs(dataset_path, language_direction, dataset_name == DatasetType.IWSLT.name)
+def get_data_loaders(dataset_path, language_direction, dataset_name, batch_size, device, max_len_train = 100):
+    train_dataset, val_dataset, test_dataset, src_field_processor, trg_field_processor = get_datasets_and_vocabs(dataset_path, language_direction, dataset_name == DatasetType.IWSLT.name, max_len_train = max_len_train)
     train_token_ids_loader, val_token_ids_loader, test_token_ids_loader = BucketIterator.splits(
      datasets=(train_dataset, val_dataset, test_dataset),
      batch_size=batch_size,
      device=device,
      sort_within_batch=True,  # this part is really important otherwise we won't group similar length sentences
      batch_size_fn=batch_size_fn  # this helps us max out GPU's VRAM
-    )
+     )
 
     return train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor
 

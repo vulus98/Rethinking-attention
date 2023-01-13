@@ -79,18 +79,17 @@ class FFNetwork_shrink(nn.ModuleList):
         return data*mask
 
 class FFNetwork_small(nn.ModuleList):
-    def __init__(self, output_dim=800,model_dimension=128,sentence_length=MAX_LEN):
+    def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
         super(FFNetwork_small, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
-        self.output_dim=output_dim
         self.layers=list()
-        widths=[self.width,self.width//4,self.output_dim]
+        widths=[1,2,1]
         self.depth=len(widths)-1
         self.layers=nn.ModuleList()
         for i in range(self.depth):
-            self.layers.extend([nn.LayerNorm(widths[i]),nn.Linear(widths[i], widths[i+1])])
+            self.layers.extend([nn.LayerNorm(self.width * widths[i]),nn.Linear(self.width * widths[i], self.width * widths[i+1])])
             if(i<self.depth-1):
                 self.layers.append(nn.LeakyReLU())
     def forward(self,data,mask):

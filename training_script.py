@@ -21,8 +21,8 @@ from models.definitions.transformer_model import Transformer
 from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_src_and_trg_batches, DatasetType, LanguageDirection
 import utils.utils as utils
 from utils.constants import *
-
-
+from validation_script import substitute_attention
+import models.definitions.mha_FF as FF_models
 
 # Global vars for logging purposes
 num_of_trg_tokens_processed = 0
@@ -85,9 +85,9 @@ def get_train_val_loop(baseline_transformer, custom_lr_optimizer, kl_div_loss, l
                     num_of_trg_tokens_processed = 0
 
                 # Save model checkpoint
-                if training_config['checkpoint_freq'] is not None and (epoch + 1) % training_config['checkpoint_freq'] == 0 and batch_idx == 0:
-                    ckpt_model_name = f"transformer_ckpt_epoch_{epoch + 1}.pth"
-                    torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
+                # if training_config['checkpoint_freq'] is not None and (epoch + 1) % training_config['checkpoint_freq'] == 0 and batch_idx == 0:
+                #     ckpt_model_name = f"transformer_ckpt_epoch_{epoch + 1}.pth"
+                #     torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
             else:
                 global_val_step += 1
 
@@ -99,8 +99,9 @@ def get_train_val_loop(baseline_transformer, custom_lr_optimizer, kl_div_loss, l
 
 def train_transformer(training_config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
-
+    # device = "cpu"
     # Step 1: Prepare data loaders
+    # NOTE: If we wanted to load the pretrained transformer, we would need to first load the entire training data to get the full vocabulary. Then reload the dataset filtering for sentences s.t. S <= MAX_LEN
     train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
         training_config['dataset_path'],
         training_config['language_direction'],
@@ -121,6 +122,34 @@ def train_transformer(training_config):
         number_of_layers=BASELINE_MODEL_NUMBER_OF_LAYERS,
         dropout_probability=BASELINE_MODEL_DROPOUT_PROB
     ).to(device)
+    model_path = os.path.join(BINARIES_PATH, training_config['model_name'])
+    model_state = torch.load(model_path)
+    baseline_transformer.load_state_dict(model_state["state_dict"], strict=True)
+    baseline_transformer.train()
+
+    # reloading the data, filtering sentences of len>50
+    train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
+        training_config['dataset_path'],
+        training_config['language_direction'],
+        training_config['dataset_name'],
+        training_config['batch_size'],
+        device,
+        max_len_train=MAX_LEN)
+
+    # Step 3: substitute attention
+    if training_config["substitute_type"] != "none":
+        substitute_attention(baseline_transformer, 
+                             training_config["substitute_class"], 
+                             training_config["substitute_model_path"], 
+                             training_config["layer"],
+                             training_config["epoch"],
+                             training_config["substitute_type"],
+                             training_config["untrained"]) 
+    else:
+        print("#"*100)
+        print("\n\t NO SUBSTITUTION \n")
+        print("#"*100)
+
     #baseline_transformer=torch.nn.DataParallel(baseline_transformer,device_ids=list(range(4)))
     # Step 3: Prepare other training related utilities
     kl_div_loss = nn.KLDivLoss(reduction='batchmean')  # gives better BLEU score than "mean"
@@ -171,7 +200,7 @@ def train_transformer(training_config):
                 writer.add_scalar('bleu_score', bleu_score, epoch)
 
     # Save the latest transformer in the binaries directory
-    torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(BINARIES_PATH, utils.get_available_binary_name()))
+    torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(BINARIES_PATH, 'replacement_layer_transformer_FF_shrink_mha'))
 
 
 if __name__ == "__main__":
@@ -192,12 +221,19 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_name", choices=[el.name for el in DatasetType], help='which dataset to use for training', default=DatasetType.IWSLT.name)
     parser.add_argument("--language_direction", choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.E2G.name)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
+    parser.add_argument("--model_name", type=str, help="transformer model name", default=r'transformer_128.pth')
 
     # Logging/debugging/checkpoint related (helps a lot with experimentation)
     parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=True)
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
     parser.add_argument("--checkpoint_freq", type=int, help="checkpoint model saving (epoch) freq", default=1)
     parser.add_argument("--start_point", type=int, help="checkpoint model (epoch) where to resume training from", default=0)
+    parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FF_large", default="FFNetwork_shrink")
+    parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth")
+    parser.add_argument("--layer", help = "If layer is not specified, all layers are substituted", default = None)
+    parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=20)
+    parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["sublayer", "mha_only", "mha_separate_heads", "none"], default="none")
+    parser.add_argument("--untrained", type=bool, default = True)
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
     training_config = dict()

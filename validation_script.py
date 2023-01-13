@@ -11,22 +11,18 @@ import time
 
 
 import torch
+import torch.nn as nn
 from tensorboardX import SummaryWriter
-from training_FF import FFNetwork
 from models.definitions.transformer_model import Transformer, mha_to_mha2, replace_mha, replace_sublayer
 from models.definitions.transformer_model import Transformer
 from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_src_and_trg_batches, DatasetType, LanguageDirection
 import utils.utils as utils
 from utils.constants import *
-from training_mh_separate_heads import FFNetwork_small
-from utils.constants import *
 
 devices=list(range(torch.cuda.device_count()))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
 # device = "cpu"
-test = False
-test_d = False
-def substitute_mha_only_encoder(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, multi_device):
+def substitute_mha_only_encoder(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained, multi_device):
     import models.definitions.mha_only_FF as m
     FF_net = getattr(m, substitute_class)
     print(f"Substituing attention with {FF_net}")
@@ -37,7 +33,7 @@ def substitute_mha_only_encoder(baseline_transformer, substitute_class, substitu
         ff_net = FF_net()
         if not multi_device:
             ff_net.to(device)
-        if not test:
+        if not untrained:
             model_path=os.path.join(substitute_model_path, f'l{l}', MHA_ONLY_CHECKPOINT_FORMAT.format(epoch, l))
             print(f"Loading weights from {model_path}")
             model_state = torch.load(model_path)
@@ -47,7 +43,7 @@ def substitute_mha_only_encoder(baseline_transformer, substitute_class, substitu
         ff_net.eval()
         replace_mha(baseline_transformer, ff_net, l, device)
 
-def substitute_mha_only_decoder(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, multi_device):
+def substitute_mha_only_decoder(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained, multi_device):
     import models.definitions.mha_only_FF as m
     FF_net = getattr(m, substitute_class)
     print(f"Substituing attention with {FF_net}")
@@ -58,7 +54,7 @@ def substitute_mha_only_decoder(baseline_transformer, substitute_class, substitu
         ff_net = FF_net()
         if not multi_device:
             ff_net.to(device)
-        if not test_d:
+        if not untrained:
             model_path=os.path.join(substitute_model_path, f'l{l}', MHA_ONLY_CHECKPOINT_FORMAT.format(epoch, l))
             print(f"Loading weights from {model_path}")
             model_state = torch.load(model_path)
@@ -68,34 +64,36 @@ def substitute_mha_only_decoder(baseline_transformer, substitute_class, substitu
         ff_net.eval()
         replace_mha(baseline_transformer, ff_net, l, device, attention_type="decoder_self")
     
-def substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layers, epoch):
-    import models.definitions.mha_FF as m #TODO: place you FF_net definitions in this file
-    FF_net = getattr(m, substitute_class)
+def substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained):
+    import models.definitions.mha_FF as m
+    FF_net =getattr(m, substitute_class)
     print(f"Substituing attention with {FF_net}")
     mha_to_mha2(baseline_transformer)
     layers = layers if layers is not None else range(6)
     print(layers)
     # Step 3: Substitute attention layers   
     for l in layers:
-        ff_net = FF_net()
-        if not test:
-            model_path=os.path.join(substitute_model_path, f'l{l}', MHA__CHECKPOINT_FORMAT.format(epoch, l)) # TODO: modify according to your naming
+        ff_net = FF_net().to(device)
+        if not untrained:
+            model_path=os.path.join(substitute_model_path, 'layer{0}'.format(l), MHA__CHECKPOINT_FORMAT.format(epoch)) # TODO: modify according to your naming
             model_state = torch.load(model_path)
             ff_net.load_state_dict(model_state)
-        ff_net.eval()
+            ff_net.eval()
+        else:
+            ff_net.train()
         replace_sublayer(baseline_transformer, ff_net, l, device)
     
 
-def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, t, multi_device = False, decoder = False):
+def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch,t, untrained=False,  multi_device = False, decoder = False):
     if t == "mha_only":
         print("Substitute mha only")
         if decoder == False:
-            substitute_mha_only_encoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, multi_device)
+            substitute_mha_only_encoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
         else:
-            substitute_mha_only_decoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, multi_device)
+            substitute_mha_only_decoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
     if t == "sublayer":
         print("Substitute mha layer")
-        substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch)
+        substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
 
 def evaluate_transformer(evaluate_config):
     # Step 1: Prepare data loaders
@@ -133,7 +131,7 @@ def evaluate_transformer(evaluate_config):
                              evaluate_config["layers"],
                              evaluate_config["epoch"],
                              evaluate_config["substitute_type"],
-                             multi_device = evaluate_config["multi_device"]) 
+                             untrained = evaluate_config["untrained"]) 
     else:
         print("#"*100)
         print("\n\t NO SUBSTITUTION IN ENCODER\n")
@@ -146,6 +144,7 @@ def evaluate_transformer(evaluate_config):
                              evaluate_config["layers_d"],
                              evaluate_config["epoch_d"],
                              evaluate_config["substitute_type_d"],
+                             untrained = evaluate_config["untrained"],
                              multi_device = evaluate_config["multi_device_d"], decoder = True)
     else:
         print("#"*100)
@@ -200,8 +199,6 @@ if __name__ == "__main__":
     for arg in vars(args):
         evaluate_config[arg] = getattr(args, arg)
     print(evaluate_config)
-    test = evaluate_config["untrained"]
-    test_d = evaluate_config["untrained_d"]
     evaluate_config['num_warmup_steps'] = num_warmup_steps
 
     # Train the original transformer model
