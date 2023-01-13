@@ -20,6 +20,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 from torch.nn.functional import pad
+from torch.nn.utils.rnn import pad_sequence
 
 
 from utils.constants import *
@@ -872,13 +873,19 @@ class AttentionSubstituteDecoder(nn.Module):
         S = value.shape[1]
         B = len(value)
         HD = BASELINE_MODEL_DIMENSION // BASELINE_MODEL_NUMBER_OF_HEADS
-        if value.shape[1] > 50:
-            print("mannaggia a me")
+        batch_size = value.shape[0]
         # 1. Pad to MAX_LEN
         inputs = torch.cat([value, torch.zeros(pad_shape(value), device = self.device)], dim = 1)
-        mask = pad(mask, (0, MAX_LEN - mask.shape[-2], 0,MAX_LEN - mask.shape[-1]))
+        mask = mask.squeeze(dim = 1)
+        trg_padding_mask = pad_sequence([x[-1] for x in mask], batch_first=True, padding_value=0)
+        trg_padding_mask = torch.cat([trg_padding_mask, torch.zeros(pad_shape(trg_padding_mask, masks = True), dtype=torch.bool, device = self.device)], dim = 1).view(batch_size, 1, -1)
+         
+        trg_no_look_forward_mask = torch.triu(torch.ones((1, MAX_LEN, MAX_LEN), device=self.device) == 1).transpose(1, 2)
+
+        # logic AND operation (both padding mask and no-look-forward must be true to attend to a certain target token)
+        trg_mask = trg_padding_mask & trg_no_look_forward_mask  # final shape = (B, T, T)
         # 3. Compute
-        outputs = self.ff(inputs, mask)
+        outputs = self.ff(inputs, trg_mask)
         outputs = outputs.reshape((outputs.shape[0], MAX_LEN, -1, HD)).transpose(1,2)
         outputs, padding =  torch.split(outputs,[S, MAX_LEN - S] , dim = 2)   
         return outputs 
