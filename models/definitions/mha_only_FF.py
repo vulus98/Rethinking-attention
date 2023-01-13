@@ -238,12 +238,13 @@ class FFNetwork_decoder_shrink128(nn.ModuleList):
                 self.layers[-1] = nn.Linear(self.width // widths[i], model_dimension)
                 
     def forward(self,data,mask:torch.Tensor):
-        mask = mask.squeeze().repeat_interleave(self.model_dimension, dim = -1)
+        padding_mask = mask[:,-1]
+        mask = mask.repeat_interleave(self.model_dimension, dim = -1)
         data = torch.reshape(data, (data.shape[0],data.shape[1]*data.shape[2]))
         outputs = []
         for i in range(mask.shape[1]):
             o = data * mask[:, i, :]
             for layer in self.layers:
                 o = layer(o)
-            outputs.append(o)
+            outputs.append(o * padding_mask[:, i].view((-1, 1)).repeat_interleave(self.model_dimension, dim = 1))
         return torch.stack(outputs, dim = 1)
