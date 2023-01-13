@@ -1,8 +1,7 @@
 #!/bin/bash
-#SBATCH --output=../sbatch_log/mha_only/shrink256/training_outputs/%j.out
 #SBATCH --gpus=1
 #SBATCH --mem-per-cpu=16000
-"# SBATCH --gres=gpumem:20g"
+"#SBATCH --gres=gpumem:20g"
 "#SBATCH --time 250"
 "#SBATCH --mail-user=dcoppola@ethz.ch"
 "#SBATCH --mail-type=ALL"
