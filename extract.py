@@ -12,7 +12,7 @@ import utils.utils as utils
 from utils.constants import *
 
 def extract_input_output(training_config):
-    prefix = f"{training_config['model_name']}_{training_config['dataset_name']}_{training_config['language_direction']}"
+    prefix = f"{training_config['model_name']}_{training_config['dataset_name']}_{training_config['language_direction']}_whole"
     # avoid appending to previously generated files
     for f in os.listdir(LAYER_OUTPUT_PATH):
         full_name = f"{LAYER_OUTPUT_PATH}/{f}"
@@ -63,7 +63,7 @@ def extract_input_output(training_config):
         print(f"Extracting {suffix}")
         hook_handles = []
         for (i, l) in enumerate(transformer.encoder.encoder_layers):
-            h = l.sublayers[0].register_forward_hook(getf(i, suffix))
+            h = l.register_forward_hook(getf(i, suffix))
             hook_handles.append(h)
         mask_filename = f"{LAYER_OUTPUT_PATH}/{prefix}_masks_{suffix}"
 
