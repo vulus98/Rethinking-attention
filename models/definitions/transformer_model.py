@@ -9,6 +9,12 @@
 
     Suggested theory: https://jalammar.github.io/illustrated-transformer/ (amazing blog!)
 
+    ---------------------
+    DANILO: Switched the qkv nets to be randomly-initialized non-linear FF models instead of linear matrix transformations.
+            As in the case with Juppi's modification of the linear matrices training, here the parameters are also not learned,
+            but they stay fixed during the training and testing of the Transformer.
+
+
 """
 
 
@@ -21,6 +27,9 @@ import torch.nn as nn
 
 
 from utils.constants import *
+
+# DANILO:
+import torch.nn.functional as F
 
 
 class Transformer(nn.Module):
@@ -86,6 +95,27 @@ class Transformer(nn.Module):
         trg_log_probs = trg_log_probs.reshape(-1, trg_log_probs.shape[-1])
 
         return trg_log_probs  # the reason I use log here is that PyTorch's nn.KLDivLoss expects log probabilities
+
+
+#
+# FF net that replaces qkv matrices
+#
+
+class QKVNet(nn.Module):
+    def __init__(self, input_dim, output_dim, intermediate_dim = None):
+        super(QKVNet, self).__init__()
+        if not intermediate_dim:
+            intermediate_dim = input_dim
+
+        self.fc1 = nn.Linear(input_dim, intermediate_dim)  # 5*5 from image dimension
+        self.fc2 = nn.Linear(intermediate_dim, intermediate_dim)
+        self.fc3 = nn.Linear(input_dim, output_dim)
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
 
 
 #
@@ -298,7 +328,11 @@ class MultiHeadedAttention(nn.Module):
         self.head_dimension = int(model_dimension / number_of_heads)
         self.number_of_heads = number_of_heads
 
-        self.qkv_nets = get_clones(nn.Linear(model_dimension, model_dimension), 3)  # identity activation hence "nets"
+        # OLD: input embeddings were multiplied by Q, K, V matrices  
+        # self.qkv_nets = get_clones(nn.Linear(model_dimension, model_dimension), 3)  # identity activation hence "nets"
+        
+        # NEW: input embeddings pass through 3 non-linear 2-layer FF networks, one for each of Q, K and V values
+        self.qkv_nets = get_clones(QKVNet(model_dimension, model_dimension), 3)
         self.out_projection_net = nn.Linear(model_dimension, model_dimension)
 
         self.attention_dropout = nn.Dropout(p=dropout_probability)  # no pun intended, not explicitly mentioned in paper
