@@ -22,8 +22,8 @@ from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_s
 import utils.utils as utils
 from utils.constants import *
 from validation_script import substitute_attention
-import models.definitions.mha_FF as FF_models
-
+import models.definitions.mha_FF as mha_FF_models
+import models.definitions.full_FF as full_FF_models
 # Global vars for logging purposes
 num_of_trg_tokens_processed = 0
 bleu_scores = []
@@ -99,6 +99,7 @@ def get_train_val_loop(baseline_transformer, custom_lr_optimizer, kl_div_loss, l
 
 def train_transformer(training_config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
+    print("Training shrink full FF in an untrained transf")
     # device = "cpu"
     # Step 1: Prepare data loaders
     # NOTE: If we wanted to load the pretrained transformer, we would need to first load the entire training data to get the full vocabulary. Then reload the dataset filtering for sentences s.t. S <= MAX_LEN
@@ -122,20 +123,19 @@ def train_transformer(training_config):
         number_of_layers=BASELINE_MODEL_NUMBER_OF_LAYERS,
         dropout_probability=BASELINE_MODEL_DROPOUT_PROB
     ).to(device)
-    model_path = os.path.join(BINARIES_PATH, training_config['model_name'])
-    model_state = torch.load(model_path)
-    baseline_transformer.load_state_dict(model_state["state_dict"], strict=True)
-    baseline_transformer.train()
+    # model_path = os.path.join(BINARIES_PATH, training_config['model_name'])
+    # model_state = torch.load(model_path)
+    # baseline_transformer.load_state_dict(model_state["state_dict"], strict=True)
+    # baseline_transformer.train()
 
     # reloading the data, filtering sentences of len>50
-     train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
+    train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
         training_config['dataset_path'],
         training_config['language_direction'],
         training_config['dataset_name'],
         training_config['batch_size'],
         device,
         max_len_train=MAX_LEN)
-
     # Step 3: substitute attention
     if training_config["substitute_type"] != "none":
         substitute_attention(baseline_transformer, 
@@ -228,7 +228,7 @@ if __name__ == "__main__":
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
     parser.add_argument("--checkpoint_freq", type=int, help="checkpoint model saving (epoch) freq", default=1)
     parser.add_argument("--start_point", type=int, help="checkpoint model (epoch) where to resume training from", default=0)
-    parser.add_argument("--substitute_class", type=nn.Module, help="class that substitutes attention e.g. FF_large", default=FF_models.FFNetwork_small)
+    parser.add_argument("--substitute_class", type=nn.Module, help="class that substitutes attention e.g. FF_large", default=full_FF_models.FFNetwork_shrink)
     parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = "/cluster/scratch/vbozic/models/checkpoints")
     parser.add_argument("--layer", help = "If layer is not specified, all layers are substituted", default = None)
     parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=20)

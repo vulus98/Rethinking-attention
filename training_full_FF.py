@@ -77,7 +77,7 @@ def prepare_data_legacy(dataset_path,num_of_loaded_files=10,chosen_layer=0,batch
     return data_loader
 
 def training_replacement_FF(params):
-    model=nets.FFNetwork_small().to(device)
+    model=nets.FFNetwork_shrink8().to(device)
     #model.init_weights()
     model.train(True)
     print("FF model created")
@@ -101,7 +101,7 @@ def training_replacement_FF(params):
             with torch.no_grad():
                 epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
         if(epoch%60==0):
-            torch.save(model.state_dict(), os.path.join(CHECKPOINTS_SCRATCH, "layer{0}".format(params["num_of_curr_trained_layer"]),"ff_network_small_{0}".format(epoch)))
+            torch.save(model.state_dict(), os.path.join(CHECKPOINTS_SCRATCH, "layer{0}".format(params["num_of_curr_trained_layer"]),"ff_network_shrink8_{0}.pth".format(epoch)))
         print("Loss per embedding element: ",epoch_loss/num_embeddings)
 
 class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
@@ -210,7 +210,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_PATH)
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
     parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=20)
-    parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=5)
+    parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary

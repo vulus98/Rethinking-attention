@@ -13,13 +13,14 @@ import time
 import torch
 import torch.nn as nn
 from tensorboardX import SummaryWriter
-import models.definitions.mha_FF as FF_models
-from models.definitions.transformer_model import Transformer, mha_to_mha2, replace_mha, replace_sublayer
+import models.definitions.mha_FF as mha_FF_models
+import models.definitions.full_FF as full_FF_models
+from models.definitions.transformer_model import Transformer, mha_to_mha2, replace_mha, replace_sublayer,replace_mha_separate_heads
 from models.definitions.transformer_model import Transformer
 from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_src_and_trg_batches, DatasetType, LanguageDirection
 import utils.utils as utils
 from utils.constants import *
-from training_mh_separate_heads import FFNetwork_small
+import models.definitions
 
 devices=list(range(torch.cuda.device_count()))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
@@ -45,9 +46,30 @@ def substitute_mha_only(baseline_transformer, substitute_class, substitute_model
             print("Test uninitialized")
         ff_net.eval()
         replace_mha(baseline_transformer, ff_net, l, device)
+
+
+def substitute_separate_mha(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained):
+    FF_net = substitute_class
+    print(f"Substituing attention with {FF_net}")
+    mha_to_mha2(baseline_transformer)
+    layers = layers if layers is not None else range(6)    
+    print(layers)
+    for l in layers:
+        ff_nets=[]
+        for h in range(8):
+            ff_net = FF_net().to(device)
+            if not untrained:
+                model_path=os.path.join(substitute_model_path,"mha", 'layer{0}'.format(l),'head{0}'.format(h), MHA__CHECKPOINT_FORMAT.format(epoch)) # TODO: modify according to your naming
+                model_state = torch.load(model_path)
+                ff_net.load_state_dict(model_state)
+                ff_net.eval()
+            else:
+                ff_net.train()
+            ff_nets+=[ff_net]
+        replace_mha_separate_heads(baseline_transformer, ff_nets, l, device)
+  
     
 def substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained):
-    import models.definitions.mha_FF as m #TODO: place you FF_net definitions in this file
     FF_net =substitute_class
     print(f"Substituing attention with {FF_net}")
     mha_to_mha2(baseline_transformer)
@@ -70,9 +92,12 @@ def substitute_attention(baseline_transformer, substitute_class, substitute_mode
     if t == "mha_only":
         print("Substitute mha only")
         substitute_mha_only(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, multi_device)
-    if t == "sublayer":
-        print("Substitute mha layer")
+    elif t == "sublayer":
+        print("Substitute whole layer")
         substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
+    elif t == "mha_separate_heads":
+        print("Substitute separate mha layer")
+        substitute_separate_mha(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
 
 def evaluate_transformer(evaluate_config):
     # Step 1: Prepare data loaders
@@ -137,7 +162,7 @@ if __name__ == "__main__":
     # Cache files and datasets are downloaded here during training, keep them in sync for speed
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
     parser.add_argument("--batch_size", type=int, help="target number of tokens in a src/trg batch", default=1500)
-    parser.add_argument("--substitute_class", type=nn.Module, help="class that substitutes attention e.g. FF_large", default=FF_models.FFNetwork_small)
+    parser.add_argument("--substitute_class", type=nn.Module, help="class that substitutes attention e.g. FF_large", default=full_FF_models.FFNetwork_shrink8)
     parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = "/cluster/scratch/vbozic/models/checkpoints")
     parser.add_argument("--layers", help = "If layer is not specified, all layers are substituted", default = None)
     parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=60)
