@@ -22,8 +22,8 @@ from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_s
 import utils.utils as utils
 from utils.constants import *
 from validation_script import substitute_attention
-import models.definitions.mha_FF as FF_models
-
+import models.definitions.mha_FF as mha_FF_models
+import models.definitions.full_FF as full_FF_models
 # Global vars for logging purposes
 num_of_trg_tokens_processed = 0
 bleu_scores = []
@@ -99,6 +99,7 @@ def get_train_val_loop(baseline_transformer, custom_lr_optimizer, kl_div_loss, l
 
 def train_transformer(training_config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
+    print("Training shrink full FF in an untrained transf")
     # device = "cpu"
     # Step 1: Prepare data loaders
     # NOTE: If we wanted to load the pretrained transformer, we would need to first load the entire training data to get the full vocabulary. Then reload the dataset filtering for sentences s.t. S <= MAX_LEN
@@ -122,10 +123,10 @@ def train_transformer(training_config):
         number_of_layers=BASELINE_MODEL_NUMBER_OF_LAYERS,
         dropout_probability=BASELINE_MODEL_DROPOUT_PROB
     ).to(device)
-    model_path = os.path.join(BINARIES_PATH, training_config['model_name'])
-    model_state = torch.load(model_path)
-    baseline_transformer.load_state_dict(model_state["state_dict"], strict=True)
-    baseline_transformer.train()
+    # model_path = os.path.join(BINARIES_PATH, training_config['model_name'])
+    # model_state = torch.load(model_path)
+    # baseline_transformer.load_state_dict(model_state["state_dict"], strict=True)
+    # baseline_transformer.train()
 
     # reloading the data, filtering sentences of len>50
     train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
@@ -135,7 +136,6 @@ def train_transformer(training_config):
         training_config['batch_size'],
         device,
         max_len_train=MAX_LEN)
-
     # Step 3: substitute attention
     if training_config["substitute_type"] != "none":
         substitute_attention(baseline_transformer, 

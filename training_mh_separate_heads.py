@@ -81,9 +81,9 @@ def training_replacement_FF(params):
                 with torch.no_grad():
                     epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
                     mapes.append(MAPE(label, pred))
-            if epoch % 20 == 0:
-                ckpt_model_name = f"ff_network_{0}.pth".format(epoch)
-                torch.save(model.state_dict(), os.path.join(CHECKPOINTS_SCRATCH,"mha","layer{0}".format(params["num_of_curr_trained_layer"]),"head{0}".format(head), ckpt_model_name))
+            if (epoch % 20 == 0):
+                ckpt_model_name = "ff_network_small_{0}.pth".format(epoch)
+                torch.save(model.state_dict(), os.path.join(params["checkpoints_folder"],"layer{0}".format(params["num_of_curr_trained_layer"]),"head{0}".format(head), ckpt_model_name))
             print(f"Loss per embedding element:{epoch_loss/num_embeddings}, MAPE: {MAPE(label, pred)}, time: {time.time() - start}")
 
 class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
@@ -208,7 +208,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_PATH)
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
     parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=20)
-    parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=3)
+    parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=5)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
     parser.add_argument("--checkpoints_folder_name", type = str, help="folder name relative to checkpoint folder")
     args = parser.parse_args()

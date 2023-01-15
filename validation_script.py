@@ -13,7 +13,7 @@ import time
 import torch
 import torch.nn as nn
 from tensorboardX import SummaryWriter
-from models.definitions.transformer_model import Transformer, mha_to_mha2, replace_mha, replace_sublayer
+from models.definitions.transformer_model import Transformer, mha_to_mha2, replace_mha, replace_sublayer,replace_mha_separate_heads
 from models.definitions.transformer_model import Transformer
 from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_src_and_trg_batches, DatasetType, LanguageDirection
 import utils.utils as utils
@@ -63,9 +63,30 @@ def substitute_mha_only_decoder(baseline_transformer, substitute_class, substitu
             print("Test uninitialized")
         ff_net.eval()
         replace_mha(baseline_transformer, ff_net, l, device, attention_type="decoder_self")
+
+def substitute_separate_mha(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained):
+    FF_net = substitute_class
+    print(f"Substituing attention with {FF_net}")
+    mha_to_mha2(baseline_transformer)
+    layers = layers if layers is not None else range(6)    
+    print(layers)
+    for l in layers:
+        ff_nets=[]
+        for h in range(8):
+            ff_net = FF_net().to(device)
+            if not untrained:
+                model_path=os.path.join(substitute_model_path,"mha", 'layer{0}'.format(l),'head{0}'.format(h), MHA__CHECKPOINT_FORMAT.format(epoch)) # TODO: modify according to your naming
+                model_state = torch.load(model_path)
+                ff_net.load_state_dict(model_state)
+                ff_net.eval()
+            else:
+                ff_net.train()
+            ff_nets+=[ff_net]
+        replace_mha_separate_heads(baseline_transformer, ff_nets, l, device)
+  
     
 def substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained):
-    import models.definitions.mha_FF as m
+    import models.definitions.full_FF as m
     FF_net =getattr(m, substitute_class)
     print(f"Substituing attention with {FF_net}")
     mha_to_mha2(baseline_transformer)
@@ -91,9 +112,12 @@ def substitute_attention(baseline_transformer, substitute_class, substitute_mode
             substitute_mha_only_encoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
         else:
             substitute_mha_only_decoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
-    if t == "sublayer":
-        print("Substitute mha layer")
+    elif t == "sublayer":
+        print("Substitute whole layer")
         substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
+    elif t == "mha_separate_heads":
+        print("Substitute separate mha layer")
+        substitute_separate_mha(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
 
 def evaluate_transformer(evaluate_config):
     # Step 1: Prepare data loaders
