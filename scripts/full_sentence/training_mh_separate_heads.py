@@ -16,12 +16,12 @@ from pathlib import Path
 import sys
 path_root = Path(__file__).parents[2]
 sys.path.append(str(path_root))
-from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_SCRATCH, BASELINE_MODEL_DIMENSION, BASELINE_MODEL_NUMBER_OF_HEADS
+from utils.constants import MHA_SEPARATE_CHECKPOINT_FORMAT, SCRATCH, MAX_LEN, CHECKPOINTS_SCRATCH
 import models.definitions.mha_FF as nets
 
 DATA_PATH=os.path.join(SCRATCH, "mha_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
-# device = "cpu"
+device = "cpu"
 def MAPE(target, output):
     #Mean Absolute Percentage Error
 
@@ -29,30 +29,13 @@ def MAPE(target, output):
         relative_error = torch.abs(output - target) / torch.max(torch.abs(target), torch.ones(output.shape, device = device)*1e-32)
         return torch.mean(relative_error)
 
-class FFDataset(Dataset):
-    def __init__(self, data, masks, labels):
-        self.data = torch.tensor(data,device=device)
-        self.labels = torch.tensor(labels,device=device)
-        self.masks= torch.tensor(masks,device=device)
-        
-    def __getitem__(self, index):
-        x = self.data[index]
-        y = self.masks[index]
-        z = self.labels[index]
-        return x, y, z
-    
-    def __len__(self):
-        return len(self.data)
-
-
-# TODO: set t = "train", "val" useful for debugging
-def prepare_data(data_path, head = 0, chosen_layer = 0, batch_size = 5, t = "train", dev = False):
+def prepare_data(data_path, head = 0, chosen_layer = 0, batch_size = 5, t = "val", dev = False):
     if t not in ["train", "test", "val"]:
         raise ValueError("ERROR: t must be train, test, or val.")
-    in_path =   os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_v_inputs_{t}")
-    out_path =  os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_outputs_{t}")
-    mask_path = os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_masks_{t}")
-    dataset = FixedWordsInterResultsDataset(in_path, out_path, mask_path, head, MAX_LEN)
+    in_path =   os.path.join(data_path, "encoder", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_v_inputs_{t}")
+    out_path =  os.path.join(data_path, "encoder", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_outputs_{t}")
+    mask_path = os.path.join(data_path, "encoder", f"128emb_20ep_IWSLT_E2G_masks_{t}")
+    dataset = SeparateHeadsDataset(in_path, out_path, mask_path, head, MAX_LEN)
     print("Training head {0}".format(head))
     if dev:
         dataset, _ = dataset = random_split(dataset, [0.2, 0.8])
@@ -61,8 +44,9 @@ def prepare_data(data_path, head = 0, chosen_layer = 0, batch_size = 5, t = "tra
     
 def training_replacement_FF(params):
     print("Training layer {0}".format(params["num_of_curr_trained_layer"]))
+    FF_net = getattr(nets, params["substitute_class"])
     for head in range(8):
-        model=nets.FFNetwork_small().to(device)
+        model=FF_net().to(device)
         model.train(True)
         print("FF model created")
         lr_optimizer = Adam(model.parameters(),betas=(0.9, 0.98), eps=1e-9)
@@ -90,11 +74,11 @@ def training_replacement_FF(params):
                     epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
                     mapes.append(MAPE(label, pred))
             if (epoch % 20 == 0):
-                ckpt_model_name = "ff_network_small_{0}.pth".format(epoch)
-                torch.save(model.state_dict(), os.path.join(params["checkpoints_folder"],"layer{0}".format(params["num_of_curr_trained_layer"]),"head{0}".format(head), ckpt_model_name))
+                ckpt_model_name = MHA_SEPARATE_CHECKPOINT_FORMAT.format(epoch+1, params['num_of_curr_trained_layer'], head)
+                torch.save(model.state_dict(), os.path.join(params["checkpoints_folder"], ckpt_model_name))
             print(f"Loss per embedding element:{epoch_loss/num_embeddings}, MAPE: {MAPE(label, pred)}, time: {time.time() - start}")
 
-class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
+class SeparateHeadsDataset(torch.utils.data.Dataset):
     # NOTE: added h to specify which head to use
     def __init__(self, input_path, output_path, mask_path, h, n, t = "max"):
         print(f"Starting to load datasets from {input_path} and {output_path} and {mask_path}")
@@ -215,17 +199,17 @@ if __name__ == "__main__":
     parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=61)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_PATH)
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
-    parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=20)
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=5)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
-    parser.add_argument("--checkpoints_folder_name", type = str, help="folder name relative to checkpoint folder")
+    parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/mha_only.py", required=True)
+    
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
     training_config = dict()
     for arg in vars(args):
         training_config[arg] = getattr(args, arg)
     print("Training arguments parsed")
-    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"mha")
+    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"mha_separate_heads", training_config["substitute_class"], f"layer{training_config['num_of_curr_trained_layer']}")    
     os.makedirs(training_config["checkpoints_folder"], exist_ok = True)
     print(training_config["checkpoints_folder"])
     training_replacement_FF(training_config)
