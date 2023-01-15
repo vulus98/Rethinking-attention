@@ -42,16 +42,17 @@ def extract_input_output(training_config):
     ).to(device)
     checkpoint = torch.load(training_config["path_to_weights"])
     transformer.load_state_dict(checkpoint['state_dict'])
+    restructure_encoder_layers(transformer)
 
     transformer.eval()
 
-    def getf(i, suffix):
+    def getf(i, extra_pref, suffix):
         def write_input_output(model, input, output):
-            # input is a tuple with a function as the second part
+            # input is a tuple with the embeddings in first place
             inp = input[0].cpu().detach().numpy()
             out = output.cpu().detach().numpy()
-            in_filename = f"{LAYER_OUTPUT_PATH}/{prefix}_layer{i}_inputs_{suffix}"
-            out_filename = f"{LAYER_OUTPUT_PATH}/{prefix}_layer{i}_outputs_{suffix}"
+            in_filename = f"{LAYER_OUTPUT_PATH}/{prefix}_{extra_pref}_layer{i}_inputs_{suffix}"
+            out_filename = f"{LAYER_OUTPUT_PATH}/{prefix}_{extra_pref}_layer{i}_outputs_{suffix}"
             # ad-hoc appending to the same file
             with open(in_filename, 'ab') as f:
                 np.save(f, inp)
@@ -63,8 +64,13 @@ def extract_input_output(training_config):
         print(f"Extracting {suffix}")
         hook_handles = []
         for (i, l) in enumerate(transformer.encoder.encoder_layers):
-            h = l.sublayers[0].register_forward_hook(getf(i, suffix))
-            hook_handles.append(h)
+            h_whole = l.register_forward_hook(getf(i, "whole", suffix))
+            h_just_attention = l.sublayer_zero.layer.register_forward_hook(getf(i, "just_attention", suffix))
+            h_with_residual = l.sublayer_zero.register_forward_hook(getf(i, "with_residual", suffix))
+            hook_handles.append(h_whole)
+            hook_handles.append(h_just_attention)
+            hook_handles.append(h_with_residual)
+        hook_handles.append(transformer.encoder.norm.register_forward_hook(getf("norm", "whole", suffix)))
         mask_filename = f"{LAYER_OUTPUT_PATH}/{prefix}_masks_{suffix}"
 
         for batch_idx, token_ids_batch in enumerate(token_ids_loader):
@@ -84,11 +90,6 @@ def extract_input_output(training_config):
     extract(test_token_ids_loader, "test")
 
 if __name__ == "__main__":
-    #
-    # Fixed args - don't change these unless you have a good reason
-    #
-    num_warmup_steps = 4000
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch_size", type=int, help="target number of tokens in a src/trg batch", default=1500)
 
@@ -107,6 +108,5 @@ if __name__ == "__main__":
     training_config = dict()
     for arg in vars(args):
         training_config[arg] = getattr(args, arg)
-    training_config['num_warmup_steps'] = num_warmup_steps
 
     extract_input_output(training_config)
