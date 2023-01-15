@@ -10,6 +10,7 @@ from models.definitions.transformer_model import Transformer
 from utils.data_utils import get_data_loaders, get_masks_and_count_tokens_src, get_src_and_trg_batches, DatasetType, LanguageDirection
 import utils.utils as utils
 from utils.constants import *
+from simulator import restructure_encoder_layers
 
 def extract_input_output(training_config):
     prefix = f"{training_config['model_name']}_{training_config['dataset_name']}_{training_config['language_direction']}"
@@ -19,7 +20,7 @@ def extract_input_output(training_config):
         if os.path.isfile(full_name) and f.startswith(prefix):
             os.remove(full_name)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
+    device = "cpu"#torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
 
     train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
         training_config['dataset_path'],
@@ -85,9 +86,9 @@ def extract_input_output(training_config):
         for h in hook_handles:
             h.remove()
 
-    extract(train_token_ids_loader, "train")
+    # extract(train_token_ids_loader, "train")
     extract(val_token_ids_loader, "val")
-    extract(test_token_ids_loader, "test")
+    # extract(test_token_ids_loader, "test")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -101,7 +102,7 @@ if __name__ == "__main__":
     # Logging/debugging related (helps a lot with experimentation)
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
     parser.add_argument("--model_name", type=str, help="name of the model", required=True)
-    parser.add_argument("--path_to_weights", type=str, help="path to the weights to load", required=True)
+    parser.add_argument("--path_to_weights", type=str, help="path to the weights of the trained transformer", required=True)
     args = parser.parse_args()
 
     # Wrapping training configuration into a dictionary
