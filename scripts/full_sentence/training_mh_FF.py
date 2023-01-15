@@ -20,7 +20,7 @@ import models.definitions.mha_only_FF as FF_models
 from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_SCRATCH, MHA_ONLY_CHECKPOINT_FORMAT
 
 DATA_PATH=os.path.join(SCRATCH, "mha_outputs")
-device = "cpu" #torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
 def MAPE(target, output):
     #Mean Absolute Percentage Error
 
@@ -28,7 +28,7 @@ def MAPE(target, output):
         relative_error = torch.abs(output - target) / torch.max(torch.abs(target), torch.ones(output.shape, device = device)*1e-32)
         return torch.mean(relative_error)
          
-def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "val", decoder = False):
+def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", decoder = False):
     if t not in ["train", "test", "val"]:
         raise ValueError("ERROR: t must be train, test, or val.")
     if t == "val":
@@ -39,7 +39,7 @@ def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "val", decoder
         in_path =   os.path.join(data_path,"encoder", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_v_inputs_{t}")
         out_path =  os.path.join(data_path,"encoder", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_outputs_{t}")
         mask_path = os.path.join(data_path,"encoder", f"128emb_20ep_IWSLT_E2G_masks_{t}")
-        dataset = FixedWordsInterResultsDataset(in_path, out_path, mask_path, MAX_LEN)
+        dataset = AttentionEncoderDataset(in_path, out_path, mask_path, MAX_LEN)
         return DataLoader(dataset,  collate_fn=collate_batch, batch_size= batch_size)
     else:
         in_path =   os.path.join(data_path,"decoder_self", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_v_inputs_{t}")
@@ -88,7 +88,7 @@ def training_replacement_FF(params):
             torch.save(model.state_dict(), os.path.join(params["checkpoints_folder"], ckpt_model_name))
         print(f"Loss per embedding element:{epoch_loss/num_embeddings}, MAPE: {MAPE(label, pred)}, time: {time.time() - start}")
 
-class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
+class AttentionEncoderDataset(torch.utils.data.Dataset):
     def __init__(self, input_path, output_path, mask_path, n, t = "max"):
         print(f"Starting to load datasets from {input_path} and {output_path} and {mask_path}")
         start = time.time()

@@ -6,7 +6,7 @@ from pickle import UnpicklingError
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader,Dataset, random_split
+from torch.utils.data import DataLoader, random_split
 from torch.optim import Adam
 from torch.nn.utils.rnn import pad_sequence
 
@@ -28,7 +28,7 @@ def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", dev =
     in_path =   os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_with_residual_layer{chosen_layer}_inputs_{t}")
     out_path =  os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_with_residual_layer{chosen_layer}_outputs_{t}")
     mask_path = os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_masks_{t}")
-    dataset = FixedWordsInterResultsDataset(in_path, out_path, mask_path, MAX_LEN)
+    dataset = AttentionDataset(in_path, out_path, mask_path, MAX_LEN)
     if dev:
         dataset, _ = dataset = random_split(dataset, [0.2, 0.8])
     return DataLoader(dataset,  collate_fn=collate_batch, batch_size= batch_size)
@@ -62,7 +62,7 @@ def training_replacement_FF(params):
             torch.save(model.state_dict(), os.path.join(training_config["checkpoints_folder"],"ff_network_shrink8_{0}.pth".format(epoch)))
         print("Loss per embedding element: ",epoch_loss/num_embeddings)
 
-class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
+class AttentionDataset(torch.utils.data.Dataset):
     def __init__(self, input_path, output_path, mask_path, n, t = "max"):
         print(f"Starting to load datasets from {input_path} and {output_path} and {mask_path}")
         start = time.time()
@@ -164,7 +164,7 @@ def collate_batch(batch):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=61)
+    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=41)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_PATH)
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
@@ -178,7 +178,7 @@ if __name__ == "__main__":
     for arg in vars(args):
         training_config[arg] = getattr(args, arg)
 
-    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"full_ff" ,training_config["substitute_class"], f"layer{training_config['num_of_curr_trained_layer']}")
+    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"mha_full" ,training_config["substitute_class"], f"layer{training_config['num_of_curr_trained_layer']}")
     os.makedirs(training_config["checkpoints_folder"], exist_ok = True)
     print("Training arguments parsed")
     print("Training layer {0}".format(training_config["num_of_curr_trained_layer"]))

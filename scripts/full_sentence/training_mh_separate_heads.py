@@ -6,7 +6,7 @@ import time
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader,Dataset, random_split
+from torch.utils.data import DataLoader, random_split
 from torch.optim import Adam
 from torch.nn.utils.rnn import pad_sequence
 
@@ -21,7 +21,7 @@ import models.definitions.mha_FF as nets
 
 DATA_PATH=os.path.join(SCRATCH, "mha_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
-device = "cpu"
+
 def MAPE(target, output):
     #Mean Absolute Percentage Error
 
@@ -29,7 +29,7 @@ def MAPE(target, output):
         relative_error = torch.abs(output - target) / torch.max(torch.abs(target), torch.ones(output.shape, device = device)*1e-32)
         return torch.mean(relative_error)
 
-def prepare_data(data_path, head = 0, chosen_layer = 0, batch_size = 5, t = "val", dev = False):
+def prepare_data(data_path, head = 0, chosen_layer = 0, batch_size = 5, t = "train", dev = False):
     if t not in ["train", "test", "val"]:
         raise ValueError("ERROR: t must be train, test, or val.")
     in_path =   os.path.join(data_path, "encoder", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_v_inputs_{t}")
@@ -196,7 +196,7 @@ def collate_batch(batch):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=61)
+    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=41)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_PATH)
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=5)
