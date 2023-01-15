@@ -182,7 +182,7 @@ def multi():
     insert(t, ms, "encoder")
     treatment(t, "MULTIPLESIMULATOR")
     # load fine-tuned weights
-    ckpt_model_name = f"{model.name}_lr0.0003_ckpt_epoch_5.pth"
+    ckpt_model_name = f"{ms.name}_lr0.0003_ckpt_epoch_5.pth"
     model_state_dict, _ = torch.load(os.path.join(CHECKPOINTS_PATH, ckpt_model_name), map_location=device)
     ms.load_state_dict(model_state_dict)
     t = get_trained_transformer()
