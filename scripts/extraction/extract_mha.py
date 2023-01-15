@@ -1,16 +1,20 @@
 import argparse
-import time
-import numpy as np
 import os
 
+import numpy as np
 import torch
-from torch import nn
+
+# Handle imports from utils
+from pathlib import Path
+import sys
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
 
 from models.definitions.transformer_model import Transformer
-from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_masks_and_count_tokens_src, get_src_and_trg_batches, DatasetType, LanguageDirection, sample_text_from_loader
-import utils.utils as utils
+from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_src_and_trg_batches, DatasetType, LanguageDirection
 from utils.constants import *
-from models.definitions.transformer_model import mha_to_mha2
+from utils.full_sentence_utils import mha_to_mha2
+
 """
 B = batch size
 S = sentence length

@@ -15,15 +15,19 @@ from torch import nn
 from torch.optim import Adam
 from tensorboardX import SummaryWriter
 
+# Handle imports from utils
+from pathlib import Path
+import sys
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
 
 from utils.optimizers_and_distributions import CustomLRAdamOptimizer, LabelSmoothingDistribution
 from models.definitions.transformer_model import Transformer
 from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_src_and_trg_batches, DatasetType, LanguageDirection
 import utils.utils as utils
 from utils.constants import *
-from validation_script import substitute_attention
-import models.definitions.mha_FF as mha_FF_models
-import models.definitions.full_FF as full_FF_models
+from utils.full_sentence_utils import substitute_attention
+
 # Global vars for logging purposes
 num_of_trg_tokens_processed = 0
 bleu_scores = []

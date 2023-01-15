@@ -1,16 +1,24 @@
+import os
+import argparse
+import time
+
 from pickle import UnpicklingError
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader,Dataset, random_split
-from torch.cuda.amp import GradScaler
-import os
-import argparse
 from torch.optim import Adam
-from utils.constants import SCRATCH, MAX_LEN,CHECKPOINTS_SCRATCH
 from torch.nn.utils.rnn import pad_sequence
-import time
+
+# Local imports
+from pathlib import Path
+import sys
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
+
+from utils.constants import SCRATCH, MAX_LEN,CHECKPOINTS_SCRATCH
 import models.definitions.full_FF as nets
+
 DATA_PATH=os.path.join(SCRATCH, "layer_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
 class FFDataset(Dataset):

@@ -1,16 +1,20 @@
 import argparse
-import time
-import numpy as np
 import os
 
+import numpy as np
+
 import torch
-from torch import nn
+
+# Local imports
+from pathlib import Path
+import sys
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
 
 from models.definitions.transformer_model import Transformer
 from utils.data_utils import get_data_loaders, get_masks_and_count_tokens_src, get_src_and_trg_batches, DatasetType, LanguageDirection
-import utils.utils as utils
 from utils.constants import *
-from simulator import restructure_encoder_layers
+from utils.simulator import restructure_encoder_layers
 
 def extract_input_output(training_config):
     prefix = f"{training_config['model_name']}_{training_config['dataset_name']}_{training_config['language_direction']}"

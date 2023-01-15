@@ -1,17 +1,23 @@
 from pickle import UnpicklingError
+import os
+import argparse
+import time
+
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader,Dataset, random_split
-import os
-import argparse
+from torch.utils.data import DataLoader
 from torch.optim import Adam
-from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_SCRATCH, MHA_ONLY_CHECKPOINT_FORMAT
 from torch.nn.utils.rnn import pad_sequence
-import time
 from torch.nn.functional import pad
-# from torchmetrics import MeanAbsolutePercentageError
+
+# Local imports
+from pathlib import Path
+import sys
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
 import models.definitions.mha_only_FF as FF_models
+from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_SCRATCH, MHA_ONLY_CHECKPOINT_FORMAT
 
 DATA_PATH=os.path.join(SCRATCH, "mha_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!

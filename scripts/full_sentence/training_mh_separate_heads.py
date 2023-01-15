@@ -1,14 +1,22 @@
 from pickle import UnpicklingError
+import argparse
+import os
+import time
+
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader,Dataset, random_split
-import os
-import argparse
 from torch.optim import Adam
-from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_SCRATCH, BASELINE_MODEL_DIMENSION, BASELINE_MODEL_NUMBER_OF_HEADS
 from torch.nn.utils.rnn import pad_sequence
-import time
+
+
+# Local imports
+from pathlib import Path
+import sys
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
+from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_SCRATCH, BASELINE_MODEL_DIMENSION, BASELINE_MODEL_NUMBER_OF_HEADS
 import models.definitions.mha_FF as nets
 
 DATA_PATH=os.path.join(SCRATCH, "mha_outputs")

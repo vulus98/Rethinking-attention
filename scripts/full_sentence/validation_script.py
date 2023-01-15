@@ -1,123 +1,23 @@
-"""
-    Notes:
-        * I won't add model checkpoint averaging as mentioned in the paper - it just feels like an arbitrary heuristic
-         and it won't add anything to the learning experience this repo aims to provide.
-
-"""
-
-
 import argparse
-import time
-
 
 import torch
-import torch.nn as nn
-from tensorboardX import SummaryWriter
-from models.definitions.transformer_model import Transformer, mha_to_mha2, replace_mha, replace_sublayer,replace_mha_separate_heads
+
+
+# Local imports
+from pathlib import Path
+import sys
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
+
 from models.definitions.transformer_model import Transformer
-from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_src_and_trg_batches, DatasetType, LanguageDirection
+from utils.data_utils import get_data_loaders, DatasetType, LanguageDirection
+from utils.full_sentence_utils import substitute_attention
 import utils.utils as utils
 from utils.constants import *
 
 devices=list(range(torch.cuda.device_count()))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
 # device = "cpu"
-def substitute_mha_only_encoder(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained, multi_device):
-    import models.definitions.mha_only_FF as m
-    FF_net = getattr(m, substitute_class)
-    print(f"Substituing attention with {FF_net}")
-    mha_to_mha2(baseline_transformer)
-    layers = layers if layers is not None else range(6)    
-    print(layers)
-    for l in layers:
-        ff_net = FF_net()
-        if not multi_device:
-            ff_net.to(device)
-        if not untrained:
-            model_path=os.path.join(substitute_model_path, f'l{l}', MHA_ONLY_CHECKPOINT_FORMAT.format(epoch, l))
-            print(f"Loading weights from {model_path}")
-            model_state = torch.load(model_path)
-            ff_net.load_state_dict(model_state)
-        else:
-            print("Test uninitialized")
-        ff_net.eval()
-        replace_mha(baseline_transformer, ff_net, l, device)
-
-def substitute_mha_only_decoder(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained, multi_device):
-    import models.definitions.mha_only_FF as m
-    FF_net = getattr(m, substitute_class)
-    print(f"Substituing attention with {FF_net}")
-    mha_to_mha2(baseline_transformer, attention_type="decoder_self")
-    layers = layers if layers is not None else range(6)    
-    print(layers)
-    for l in layers:
-        ff_net = FF_net()
-        if not multi_device:
-            ff_net.to(device)
-        if not untrained:
-            model_path=os.path.join(substitute_model_path, f'l{l}', MHA_ONLY_CHECKPOINT_FORMAT.format(epoch, l))
-            print(f"Loading weights from {model_path}")
-            model_state = torch.load(model_path)
-            ff_net.load_state_dict(model_state)
-        else:
-            print("Test uninitialized")
-        ff_net.eval()
-        replace_mha(baseline_transformer, ff_net, l, device, attention_type="decoder_self")
-
-def substitute_separate_mha(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained):
-    FF_net = substitute_class
-    print(f"Substituing attention with {FF_net}")
-    mha_to_mha2(baseline_transformer)
-    layers = layers if layers is not None else range(6)    
-    print(layers)
-    for l in layers:
-        ff_nets=[]
-        for h in range(8):
-            ff_net = FF_net().to(device)
-            if not untrained:
-                model_path=os.path.join(substitute_model_path,"mha", 'layer{0}'.format(l),'head{0}'.format(h), MHA__CHECKPOINT_FORMAT.format(epoch)) # TODO: modify according to your naming
-                model_state = torch.load(model_path)
-                ff_net.load_state_dict(model_state)
-                ff_net.eval()
-            else:
-                ff_net.train()
-            ff_nets+=[ff_net]
-        replace_mha_separate_heads(baseline_transformer, ff_nets, l, device)
-  
-    
-def substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained):
-    import models.definitions.full_FF as m
-    FF_net =getattr(m, substitute_class)
-    print(f"Substituing attention with {FF_net}")
-    mha_to_mha2(baseline_transformer)
-    layers = layers if layers is not None else range(6)
-    print(layers)
-    # Step 3: Substitute attention layers   
-    for l in layers:
-        ff_net = FF_net().to(device)
-        if not untrained:
-            model_path=os.path.join(substitute_model_path, 'layer{0}'.format(l), MHA__CHECKPOINT_FORMAT.format(epoch)) # TODO: modify according to your naming
-            model_state = torch.load(model_path)
-            ff_net.load_state_dict(model_state)
-            ff_net.eval()
-        else:
-            ff_net.train()
-        replace_sublayer(baseline_transformer, ff_net, l, device)
-    
-
-def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch,t, untrained=False,  multi_device = False, decoder = False):
-    if t == "mha_only":
-        print("Substitute mha only")
-        if decoder == False:
-            substitute_mha_only_encoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
-        else:
-            substitute_mha_only_decoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
-    elif t == "sublayer":
-        print("Substitute whole layer")
-        substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
-    elif t == "mha_separate_heads":
-        print("Substitute separate mha layer")
-        substitute_separate_mha(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
 
 def evaluate_transformer(evaluate_config):
     # Step 1: Prepare data loaders
