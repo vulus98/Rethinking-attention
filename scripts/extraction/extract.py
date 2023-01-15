@@ -90,9 +90,9 @@ def extract_input_output(training_config):
         for h in hook_handles:
             h.remove()
 
-    # extract(train_token_ids_loader, "train")
+    extract(train_token_ids_loader, "train")
     extract(val_token_ids_loader, "val")
-    # extract(test_token_ids_loader, "test")
+    extract(test_token_ids_loader, "test")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -105,7 +105,7 @@ if __name__ == "__main__":
 
     # Logging/debugging related (helps a lot with experimentation)
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
-    parser.add_argument("--model_name", type=str, help="name of the model", required=True)
+    parser.add_argument("--model_name", type=str, help="name of the model", default = "128emb_20ep")
     parser.add_argument("--path_to_weights", type=str, help="path to the weights of the trained transformer", required=True)
     args = parser.parse_args()
 
