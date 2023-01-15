@@ -76,9 +76,9 @@ def insert_untrained(transformer, module, ext_pref):
 
 def insert(transformer, module, ext_pref):
     if ext_pref == "just_attention":
-        replace_encoder_sublayers(transformer, module)
+        replace_encoder_just_attention(transformer, module)
     elif ext_pref == "with_residual":
-        replace_encoder_sublayers(transformer, module)
+        replace_encoder_with_residual(transformer, module)
     elif ext_pref == "encoder":
         replace_encoder(transformer, module)
     else:
@@ -138,12 +138,24 @@ def treatment(t, name):
     evaluate(t)
     print(f"{name}: Fine-tuning the pretrained version.")
     fine_tune(t, name)
-    print(f"{name}: Evaluating the fine-tuned version.")
-    evaluate(t)
     print(f"{name}: Training everything from scratch.")
     train_from_scratch(t, 20, name)
-    print(f"{name}: Evaluating the version trained from scratch.")
-    evaluate(t)
+
+def get_attention_sims(ext_pref):
+    sims = []
+    for i in range(6):
+        nr_layers = configs[ext_pref]["nr_layers"]
+        nr_units = configs[ext_pref]["nr_units"]
+        batch_size = configs[ext_pref]["batch_size"]
+        a = AttentionSimulator(nr_layers, nr_units).to(device)
+        # load weights
+        ckpt_model_name = get_checkpoint_name(a.name, batch_size, i, "norm" if i == 5 and ext_pref == "whole" else i, 25, ext_pref)
+        model_state_dict, _ = torch.load(os.path.join(CHECKPOINTS_PATH, ckpt_model_name), map_location=device)
+        a.load_state_dict(model_state_dict)
+        if ext_pref != "whole":
+            a = SimulatorAdapter(a).to(device)
+        sims.append(a)
+    return sims
 
 def vanilla():
     print("VANILLA: Evaluating the pretrained version.")
@@ -163,17 +175,7 @@ def single_sim():
     treatment(t, "SINGLESIM")
 
 def multi():
-    sims = []
-    for i in range(6):
-        nr_layers = configs["whole"]["nr_layers"]
-        nr_units = configs["whole"]["nr_units"]
-        batch_size = configs["whole"]["batch_size"]
-        a = AttentionSimulator(nr_layers, nr_units).to(device)
-        # load weights
-        ckpt_model_name = get_checkpoint_name(a.name, batch_size, i, "norm" if i == 5 else i, 25, "whole")
-        model_state_dict, _ = torch.load(os.path.join(CHECKPOINTS_PATH, ckpt_model_name), map_location=device)
-        a.load_state_dict(model_state_dict)
-        sims.append(a)
+    sims = get_attention_sims("whole")
     ms = MultipleSimulator(sims).to(device)
 
     t = get_trained_transformer()
@@ -190,34 +192,13 @@ def multi():
     evaluate(t)
 
 def just_attention():
-    layers = []
-    for i in range(6):
-        nr_layers = configs["just_attention"]["nr_layers"]
-        nr_units = configs["just_attention"]["nr_units"]
-        batch_size = configs["just_attention"]["batch_size"]
-        a = AttentionSimulator(nr_layers, nr_units).to(device)
-        # load weights
-        ckpt_model_name = get_checkpoint_name(a.name, batch_size, i, i, 25, "just_attention")
-        model_state_dict, _ = torch.load(os.path.join(CHECKPOINTS_PATH, ckpt_model_name), map_location=device)
-        a.load_state_dict(model_state_dict)
-        layers.append(SimulatorAdapter(a).to(device))
+    layers = get_attention_sims("just_attention")
     t = get_trained_transformer()
     insert(t, layers, "just_attention")
     treatment(t, "JUST ATTENTION")
 
 def with_residual():
-    layers = []
-    for i in range(6):
-        # this was the best configuration found
-        nr_layers = configs["with_residual"]["nr_layers"]
-        nr_units = configs["with_residual"]["nr_units"]
-        batch_size = configs["with_residual"]["batch_size"]
-        a = AttentionSimulator(nr_layers, nr_units).to(device)
-        # load weights
-        ckpt_model_name = get_checkpoint_name(a.name, batch_size, i, i, 25, "with_residual")
-        model_state_dict, _ = torch.load(os.path.join(CHECKPOINTS_PATH, ckpt_model_name), map_location=device)
-        a.load_state_dict(model_state_dict)
-        layers.append(SimulatorAdapter(a).to(device))
+    layers = get_attention_sims("with_residual")
     t = get_trained_transformer()
     insert(t, layers, "with_residual")
     treatment(t, "WITH RESIDUAL")

@@ -35,9 +35,9 @@ def train():
         sims.append(a)
     model = MultipleSimulator(sims).to(device)
 
-    train_data_set = UnchangedDataset(0, "norm", "train", device)
-    val_data_set = UnchangedDataset(0, "norm", "val", device)
-    test_data_set = UnchangedDataset(0, "norm", "test", device)
+    train_data_set = UnchangedDataset(0, "norm", "train", device, "whole")
+    val_data_set = UnchangedDataset(0, "norm", "val", device, "whole")
+    test_data_set = UnchangedDataset(0, "norm", "test", device, "whole")
 
     lr = 0.0003
 

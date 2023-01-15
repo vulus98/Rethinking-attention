@@ -1,3 +1,5 @@
+For what still needs to be done: check the todo file.
+
 Approach:
 In general, the averaging approach I chose is around the idea to transform a single word of a sentence together with the average of the whole sentence.
 I tried this replacing different parts of the encoder:
