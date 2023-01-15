@@ -20,7 +20,7 @@ import models.definitions.mha_only_FF as FF_models
 from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_SCRATCH, MHA_ONLY_CHECKPOINT_FORMAT
 
 DATA_PATH=os.path.join(SCRATCH, "mha_outputs")
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
+device = "cpu" #torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
 def MAPE(target, output):
     #Mean Absolute Percentage Error
 
@@ -28,7 +28,7 @@ def MAPE(target, output):
         relative_error = torch.abs(output - target) / torch.max(torch.abs(target), torch.ones(output.shape, device = device)*1e-32)
         return torch.mean(relative_error)
          
-def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", decoder = False):
+def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "val", decoder = False):
     if t not in ["train", "test", "val"]:
         raise ValueError("ERROR: t must be train, test, or val.")
     if t == "val":
@@ -300,7 +300,6 @@ if __name__ == "__main__":
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
-    parser.add_argument("--checkpoints_folder_name", type = str, help="folder name relative to checkpoint folder")
     parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/mha_only.py", required=True)
     parser.add_argument("--multi_device", action = "store_true")
     parser.add_argument("--decoder", action = "store_true")
@@ -311,7 +310,7 @@ if __name__ == "__main__":
     for arg in vars(args):
         training_config[arg] = getattr(args, arg)
     print("Training arguments parsed")
-    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"mha" ,training_config["checkpoints_folder_name"])
+    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"mha_only", training_config["substitute_class"], f"layer{training_config['num_of_curr_trained_layer']}")
     os.makedirs(training_config["checkpoints_folder"], exist_ok = True)
     print(training_config["checkpoints_folder"])
     print(training_config)
