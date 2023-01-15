@@ -89,9 +89,9 @@ def get_train_val_loop(baseline_transformer, custom_lr_optimizer, kl_div_loss, l
                     num_of_trg_tokens_processed = 0
 
                 # Save model checkpoint
-                # if training_config['checkpoint_freq'] is not None and (epoch + 1) % training_config['checkpoint_freq'] == 0 and batch_idx == 0:
-                #     ckpt_model_name = f"transformer_ckpt_epoch_{epoch + 1}.pth"
-                #     torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
+                if training_config['checkpoint_freq'] is not None and (epoch + 1) % training_config['checkpoint_freq'] == 0 and batch_idx == 0:
+                    ckpt_model_name = f"transformer_ckpt_epoch_{epoch + 1}.pth"
+                    torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
             else:
                 global_val_step += 1
 
@@ -103,7 +103,6 @@ def get_train_val_loop(baseline_transformer, custom_lr_optimizer, kl_div_loss, l
 
 def train_transformer(training_config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
-    print("Training shrink full FF in an untrained transf")
     # device = "cpu"
     # Step 1: Prepare data loaders
     # NOTE: If we wanted to load the pretrained transformer, we would need to first load the entire training data to get the full vocabulary. Then reload the dataset filtering for sentences s.t. S <= MAX_LEN

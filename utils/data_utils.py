@@ -172,16 +172,12 @@ def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, us
         save_cache(train_cache_path, train_dataset)
         save_cache(val_cache_path, val_dataset)
         save_cache(test_cache_path, test_dataset)
-        # HACK: the transformer was trained with max_len 100, to get the same dictionary the training data is still filtered with len 100, but val and test are then filtered with len 50. Both original transformer and the one with replaced attention are evaluated on max len = 50.
-        val_dataset = DatasetWrapper.get_val_datasets( val_cache_path, fields, filter_pred=filter_val_test)
-        test_dataset = DatasetWrapper.get_test_dataset(test_cache_path, fields, filter_pred=filter_val_test)
-        
-    else:
-        # it's actually better to load from cache as we'll get rid of '\xa0', '\xa0 ' and '\x85' unicode characters
-        # which we don't need and which SpaCy unfortunately includes as tokens.
-        train_dataset = DatasetWrapper.get_train_datasets(train_cache_path,fields,filter_pred=filter_pred)
-        val_dataset = DatasetWrapper.get_val_datasets( val_cache_path, fields, filter_pred=filter_val_test)
-        test_dataset = DatasetWrapper.get_test_dataset(test_cache_path, fields, filter_pred=filter_val_test)
+
+    # it's actually better to load from cache as we'll get rid of '\xa0', '\xa0 ' and '\x85' unicode characters
+    # which we don't need and which SpaCy unfortunately includes as tokens.
+    train_dataset = DatasetWrapper.get_train_datasets(train_cache_path,fields,filter_pred=filter_pred)
+    val_dataset = DatasetWrapper.get_val_datasets( val_cache_path, fields, filter_pred=filter_val_test)
+    test_dataset = DatasetWrapper.get_test_dataset(test_cache_path, fields, filter_pred=filter_val_test)
 
     print(f'Time it took to prepare the data: {time.time() - ts:3f} seconds.')
 
