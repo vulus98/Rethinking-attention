@@ -21,9 +21,8 @@ import models.definitions.full_FF as nets
 
 DATA_PATH=os.path.join(SCRATCH, "layer_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
-device = "cpu"
                 
-def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "val", dev = False):
+def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", dev = False):
     if t not in ["train", "test", "val"]:
         raise ValueError("ERROR: t must be train, test, or val.")
     in_path =   os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_with_residual_layer{chosen_layer}_inputs_{t}")
@@ -168,10 +167,8 @@ if __name__ == "__main__":
     parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=61)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_PATH)
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
-    parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=20)
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
-    parser.add_argument("--checkpoints_folder_name", type = str, help="folder name relative to checkpoint folder", required = True)
     parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/mha_only.py", required=True)
     
     
