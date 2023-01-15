@@ -39,7 +39,7 @@ def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", decod
         in_path =   os.path.join(data_path,"encoder", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_v_inputs_{t}")
         out_path =  os.path.join(data_path,"encoder", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_outputs_{t}")
         mask_path = os.path.join(data_path,"encoder", f"128emb_20ep_IWSLT_E2G_masks_{t}")
-        dataset = FixedWordsInterResultsDataset(in_path, out_path, mask_path, MAX_LEN)
+        dataset = AttentionEncoderDataset(in_path, out_path, mask_path, MAX_LEN)
         return DataLoader(dataset,  collate_fn=collate_batch, batch_size= batch_size)
     else:
         in_path =   os.path.join(data_path,"decoder_self", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_v_inputs_{t}")
@@ -88,7 +88,7 @@ def training_replacement_FF(params):
             torch.save(model.state_dict(), os.path.join(params["checkpoints_folder"], ckpt_model_name))
         print(f"Loss per embedding element:{epoch_loss/num_embeddings}, MAPE: {MAPE(label, pred)}, time: {time.time() - start}")
 
-class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
+class AttentionEncoderDataset(torch.utils.data.Dataset):
     def __init__(self, input_path, output_path, mask_path, n, t = "max"):
         print(f"Starting to load datasets from {input_path} and {output_path} and {mask_path}")
         start = time.time()
@@ -300,7 +300,6 @@ if __name__ == "__main__":
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
-    parser.add_argument("--checkpoints_folder_name", type = str, help="folder name relative to checkpoint folder")
     parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/mha_only.py", required=True)
     parser.add_argument("--multi_device", action = "store_true")
     parser.add_argument("--decoder", action = "store_true")
@@ -311,7 +310,7 @@ if __name__ == "__main__":
     for arg in vars(args):
         training_config[arg] = getattr(args, arg)
     print("Training arguments parsed")
-    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"mha" ,training_config["checkpoints_folder_name"])
+    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"mha_only", training_config["substitute_class"], f"layer{training_config['num_of_curr_trained_layer']}")
     os.makedirs(training_config["checkpoints_folder"], exist_ok = True)
     print(training_config["checkpoints_folder"])
     print(training_config)

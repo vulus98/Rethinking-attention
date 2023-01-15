@@ -17,7 +17,6 @@ from utils.constants import *
 
 devices=list(range(torch.cuda.device_count()))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
-# device = "cpu"
 
 def evaluate_transformer(evaluate_config):
     # Step 1: Prepare data loaders
@@ -96,25 +95,24 @@ if __name__ == "__main__":
     # Cache files and datasets are downloaded here during training, keep them in sync for speed
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
     parser.add_argument("--batch_size", type=int, help="target number of tokens in a src/trg batch", default=1500)
+    
     # Params for encoder substitution
-    parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FF_large")
-    parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth")
+    parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FF_large", default = "shrink")
+    parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = None)
     parser.add_argument("--layers", nargs='+',type = int ,help = "If layer is not specified, all layers are substituted")
     parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.")
-
-    # Params for decoder substitution
     parser.add_argument("--multi_device", action = "store_true")
     parser.add_argument("--untrained", action = "store_true")
-    parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["sublayer", "mha_only", "mha_separate_heads", "none"], default="none")
+    parser.add_argument("--substitute_type", type = str, help="Type of approach to use for substitution", choices=["mha_full", "mha_only", "mha_separate_heads", "none"], default="none")
     
     # Params for decoder substitution
-    parser.add_argument("--substitute_class_d", type=str, help="class that substitutes attention e.g. FF_large")
-    parser.add_argument("--substitute_model_path_d", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth")
+    parser.add_argument("--substitute_class_d", type=str, help="class that substitutes attention e.g. FF_large", default="shrink")
+    parser.add_argument("--substitute_model_path_d", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = None)
     parser.add_argument("--layers_d", nargs='+',type = int ,help = "If layer is not specified, all layers are substituted")
     parser.add_argument("--epoch_d", type = int, help="Epoch checkpoint to use.")
     parser.add_argument("--multi_device_d", action = "store_true")
     parser.add_argument("--untrained_d", action = "store_true")
-    parser.add_argument("--substitute_type_d", type = str, help="Epoch checkpoint to use.", choices=["sublayer", "mha_only", "mha_separate_heads", "none"], default="none")
+    parser.add_argument("--substitute_type_d", type = str, help="Type of approach to use for substitution", choices=["mha_full", "mha_only", "mha_separate_heads", "none"], default="none")
     
     # Decoding related args
     args = parser.parse_args()
@@ -122,8 +120,14 @@ if __name__ == "__main__":
     evaluate_config = dict()
     for arg in vars(args):
         evaluate_config[arg] = getattr(args, arg)
+    
+    if evaluate_config["substitute_model_path"] == None:
+        evaluate_config["substitute_model_path"] = os.path.join(CHECKPOINTS_SCRATCH, evaluate_config["substitute_type"] ,evaluate_config["substitute_class"])
+    
+    
+    if evaluate_config["substitute_model_path_d"] == None:
+        evaluate_config["substitute_model_path_d"] = os.path.join(CHECKPOINTS_SCRATCH, evaluate_config["substitute_type_d"] ,evaluate_config["substitute_class_d"])
     print(evaluate_config)
-    evaluate_config['num_warmup_steps'] = num_warmup_steps
 
     # Train the original transformer model
     evaluate_transformer(evaluate_config)

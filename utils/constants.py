@@ -27,6 +27,7 @@ DATA_DIR_PATH = os.path.join(os.path.dirname(__file__), os.pardir, 'data')
 LAYER_OUTPUT_PATH = os.path.join(SCRATCH, "layer_outputs")
 MHA_OUTPUT_PATH = os.path.join(SCRATCH, "mha_outputs")
 MHA_ONLY_CHECKPOINT_FORMAT = "ff_network_{0}_layer_{1}.pth" #.format(epoch, layer)
+MHA_SEPARATE_CHECKPOINT_FORMAT = "ff_network_{0}_layer_{1}_head{2}.pth" 
 MHA__CHECKPOINT_FORMAT = "ff_network_shrink8_{0}.pth" #TODO: modify this according to your needs (Vule)
 os.makedirs(CHECKPOINTS_SCRATCH, exist_ok=True)
 ATTENTION_WEIGHTS_OUTPUT_PATH = os.path.join(SCRATCH, "attention_weights_outputs")

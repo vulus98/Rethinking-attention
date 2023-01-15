@@ -6,7 +6,7 @@ from pickle import UnpicklingError
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader,Dataset, random_split
+from torch.utils.data import DataLoader, random_split
 from torch.optim import Adam
 from torch.nn.utils.rnn import pad_sequence
 
@@ -16,26 +16,11 @@ import sys
 path_root = Path(__file__).parents[2]
 sys.path.append(str(path_root))
 
-from utils.constants import SCRATCH, MAX_LEN,CHECKPOINTS_SCRATCH
+from utils.constants import MHA_ONLY_CHECKPOINT_FORMAT, SCRATCH, MAX_LEN,CHECKPOINTS_SCRATCH
 import models.definitions.full_FF as nets
 
 DATA_PATH=os.path.join(SCRATCH, "layer_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
-class FFDataset(Dataset):
-    def __init__(self, data, masks, labels):
-        self.data = torch.tensor(data,device=device)
-        self.labels = torch.tensor(labels,device=device)
-        self.masks= torch.tensor(masks,device=device)
-        
-    def __getitem__(self, index):
-        x = self.data[index]
-        y = self.masks[index]
-        z = self.labels[index]
-        return x, y, z
-    
-    def __len__(self):
-        return len(self.data)
-
                 
 def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", dev = False):
     if t not in ["train", "test", "val"]:
@@ -43,50 +28,15 @@ def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", dev =
     in_path =   os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_with_residual_layer{chosen_layer}_inputs_{t}")
     out_path =  os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_with_residual_layer{chosen_layer}_outputs_{t}")
     mask_path = os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_masks_{t}")
-    dataset = FixedWordsInterResultsDataset(in_path, out_path, mask_path, MAX_LEN)
+    dataset = AttentionDataset(in_path, out_path, mask_path, MAX_LEN)
     if dev:
         dataset, _ = dataset = random_split(dataset, [0.2, 0.8])
     return DataLoader(dataset,  collate_fn=collate_batch, batch_size= batch_size)
     
-def prepare_data_legacy(dataset_path,num_of_loaded_files=10,chosen_layer=0,batch_size=5):
-    data_label_path=os.path.join(dataset_path,"l{0}".format(chosen_layer))
-    mask_path=os.path.join(dataset_path,"src_mask")
-    whole_data_set=None
-    whole_masks_set=None
-    whole_labels_set=None
-
-    for i in range(num_of_loaded_files):
-        print("Loading batch {0}".format(i))
-
-        new_data_batch=np.load(os.path.join(data_label_path,'input-batch-{0}.npy'.format(i)))[:,:50,:]
-        model_dimension=new_data_batch.shape[2]
-        new_data_batch=np.reshape(new_data_batch,newshape=(new_data_batch.shape[0],new_data_batch.shape[1]*new_data_batch.shape[2]))
-        
-        new_masks_batch=np.load(os.path.join(mask_path,'mask-batch-{0}.npy'.format(i)))[:,:50]
-        new_masks_batch=np.repeat(new_masks_batch,model_dimension,axis=1)
-        
-        new_labels_batch=np.load(os.path.join(data_label_path,'output-batch-{0}.npy'.format(i)))[:,:50,:]
-        new_labels_batch=np.reshape(new_labels_batch,newshape=(new_labels_batch.shape[0],new_labels_batch.shape[1]*model_dimension))
-
-        new_data_batch=new_data_batch*new_masks_batch
-        new_labels_batch=new_labels_batch*new_masks_batch
-        if(i==0):
-            whole_data_set=new_data_batch
-            whole_masks_set=new_masks_batch
-            whole_labels_set=new_labels_batch
-        else:
-            whole_data_set=np.concatenate((whole_data_set,new_data_batch),axis=0)
-            whole_masks_set=np.concatenate((whole_masks_set,new_masks_batch),axis=0)
-            whole_labels_set=np.concatenate((whole_labels_set,new_labels_batch),axis=0)
-
-
-    dataset=FFDataset(whole_data_set,whole_masks_set,whole_labels_set)
-    data_loader = DataLoader(dataset, batch_size)
-    return data_loader
-
 def training_replacement_FF(params):
-    model=nets.FFNetwork_shrink8().to(device)
-    #model.init_weights()
+    FF_net = getattr(nets, params["substitute_class"])
+    print(f"Training model: {FF_net}")
+    model=FF_net().to(device)
     model.train(True)
     print("FF model created")
     lr_optimizer = Adam(model.parameters(), lr=0.001,betas=(0.9, 0.98), eps=1e-9)
@@ -109,10 +59,11 @@ def training_replacement_FF(params):
             with torch.no_grad():
                 epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
         if(epoch%60==0):
-            torch.save(model.state_dict(), os.path.join(CHECKPOINTS_SCRATCH, "layer{0}".format(params["num_of_curr_trained_layer"]),"ff_network_shrink8_{0}.pth".format(epoch)))
+            ckpt_model_name = MHA_ONLY_CHECKPOINT_FORMAT.format(epoch+1, params['num_of_curr_trained_layer'])
+            torch.save(model.state_dict(), os.path.join(training_config["checkpoints_folder"],ckpt_model_name))
         print("Loss per embedding element: ",epoch_loss/num_embeddings)
 
-class FixedWordsInterResultsDataset(torch.utils.data.Dataset):
+class AttentionDataset(torch.utils.data.Dataset):
     def __init__(self, input_path, output_path, mask_path, n, t = "max"):
         print(f"Starting to load datasets from {input_path} and {output_path} and {mask_path}")
         start = time.time()
@@ -214,17 +165,22 @@ def collate_batch(batch):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=61)
+    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=41)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_PATH)
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
-    parser.add_argument("--num_of_loaded_files", type=str, help='num_of_loaded_files', default=20)
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
+    parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/mha_only.py", required=True)
+    
+    
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
     training_config = dict()
     for arg in vars(args):
         training_config[arg] = getattr(args, arg)
+
+    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"mha_full" ,training_config["substitute_class"], f"layer{training_config['num_of_curr_trained_layer']}")
+    os.makedirs(training_config["checkpoints_folder"], exist_ok = True)
     print("Training arguments parsed")
     print("Training layer {0}".format(training_config["num_of_curr_trained_layer"]))
     training_replacement_FF(training_config)
