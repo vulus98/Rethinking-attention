@@ -1,0 +1,54 @@
+Approach:
+In general, the averaging approach I chose is around the idea to transform a single word of a sentence together with the average of the whole sentence.
+I tried this replacing different parts of the encoder:
+1. the "whole" encoder sublayer (with the norm after the last layer)
+2. "just_attention": means just the mha
+3. attention "with_residual", basically sublayer[0]
+
+I tried to find a good architecture by a randomized search in a manually defined searchspace for a single layer (find_single_layer_arch.py). Then, I trained all
+6 layers of this approach with the best performing architecture (sim_all_pretrain.py). In the case of the "whole" approach, I also trained the 6 layers put
+together with the input of the 0th layer and the output of the norm after the 6th layer(sim_all_together.py).
+
+Another approach I tried, is replacing the whole encoder with just a single network, whose architecture was also found using randomized search (single_sim.py).
+
+Finally, in the evaluation, I replace the corresponding layers in the transformer with the pretrained layers and evaluate the results. Also, I do some fine tuning
+of the new "franken"-transformer (I just came up with the name). Then, the training from scratch and the corresponding evaluation.
+
+Here again the important files and what each file does. I don't guarantee that I thought of all changed files (we will find out when merging lol).
+Most of the things are somewhat ad-hoc and not very well documented.
+
+Transformer changes:
+models/definitions/transformer_model.py: modified in order to extract weights at different weights and in order to then replace the layers for evaluation etc
+
+Evaluation:
+eval_all.sh: wrapper around evaluate.sh to sbatch the evaluation and training to different machines
+evaluate.sh: wrapper around evaluate.py
+evaluate.py: evaluate the different approaches, perform fine-tuning, train from scratch
+
+Extract:
+extract.sh: wrapper around extract.py
+extract.py: extract activations for just the attention, attention with residual and for a whole encoder sublayer (also the norm)
+
+Find good architecture:
+find_all.sh: wrapper around find_single_layer_arch.sh to sbatch the evaluation and training to different machines
+find_single_layer_arch.sh: wapper around find_single_layer_arch.py
+find_single_layer_arch.py: perform randomized grid search to find a good architecture for a single layer for the three approaches (just_attention, with_residual, whole)
+single_sim.sh: wrapper around single_sim.py
+single_sim.py: randomized grid search to replace the whole encoder by a single architecture
+
+Pretrain layers:
+pretrain_all.sh: wrapper around sim_all_pretrain.sh to sbatch the evaluation and training to different machines
+sim_all_pretrain.sh: wrapper around sim_all_pretrain.py
+sim_all_pretrain.py: pretrain all of the 6 layers with the extracted weights (for the last layer in "whole" approach with norm applied)
+
+Train "whole" layers together:
+sim_all_together.sh: wrapper around sim_all_together.py
+sim_all_together.py: fine tuning the layers of the "whole" approach with the inputs of layer 0 and outputs of the norm after layer 5
+
+Train transformer with matrices frozen:
+train_random_embedding.sh: wrapper around train_random_embedding.py
+train_random_embedding.py: train the vanilla transformer with the qkv nets frozen
+
+Common code:
+simulator.py: Datasets, Classes etc
+

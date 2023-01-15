@@ -12,25 +12,31 @@ from utils.constants import *
 
 from simulator import *
 
-def train_model(index, device):
-    index_in = index
-    index_out = index
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+num_epochs = 25
+configs = {
+        "whole": {"batch_size": 512, "nr_units": [6, 4, 7], "nr_layers": 4},
+        "just_attention": {"batch_size": 512, "nr_units": [7, 5, 7], "nr_layers": 4},
+        "with_residual": {"batch_size": 2048, "nr_units": [5, 7, 6, 5, 5], "nr_layers": 6}
+        }
 
-    nr_layers = 5
-    nr_units = [5, 5, 3, 5]
-    batch_size = 1024
+def train_model(index, t, config):
+    index_in = index
+    index_out = "norm" if index == 5 and t == "whole" else index
+
+    # best configuration found
+    nr_layers = config["nr_layers"]
+    nr_units = config["nr_units"]
+    batch_size = config["batch_size"]
 
     model = AttentionSimulator(nr_layers = nr_layers, nr_units = nr_units).to(device)
-    inst_name = f"{model.name}_bs{batch_size}_fr{index_in}_to{index_out}"
-    ckpt_model_name = f"{inst_name}_ckpt_epoch_40.pth"
+
+    ckpt_model_name = get_checkpoint_name(model.name, batch_size, index_in, index_out, num_epochs, t)
     checkpoint_path = os.path.join(CHECKPOINTS_PATH, ckpt_model_name)
 
-    if os.path.exists(checkpoint_path):
-        return
-
-    train_data_set = SingleWordsInterResultsDataset(index_in, index_out, "train", device)
-    val_data_set = SingleWordsInterResultsDataset(index_in, index_out, "val", device)
-    test_data_set = SingleWordsInterResultsDataset(index_in, index_out, "test", device)
+    train_data_set = SingleWordsInterResultsDataset(index_in, index_out, "train", device, t)
+    val_data_set = SingleWordsInterResultsDataset(index_in, index_out, "val", device, t)
+    test_data_set = SingleWordsInterResultsDataset(index_in, index_out, "test", device, t)
 
     print(f"Starting to train model {model.name} with batch size {batch_size} from layer {index_in} to layer {index_out}")
     time_start = time.time()
@@ -45,7 +51,7 @@ def train_model(index, device):
 
     val_loss = 0.0
     train_l = get_batches(train_data_set, batch_size)
-    for epoch in range(40):
+    for epoch in range(num_epochs):
         # Training
         model.train()
         for (batch_idx, (fr, to)) in enumerate(train_l):
@@ -75,22 +81,27 @@ def train_model(index, device):
             val_loss = torch.mean(losses)
             print(f'VALIDATION loss: {val_loss:.4f} RELATIVE: {((val_loss/val_out_magnitude)*100):.2f}% in epoch {epoch+1}')
 
-    del train_data_set.input
-    del train_data_set.output
-    del val_data_set.input
-    del val_data_set.output
-    del test_data_set.input
-    del test_data_set.output
-    torch.cuda.empty_cache()
     # Save model checkpoint
     torch.save((model.state_dict(), optimizer.state_dict()), checkpoint_path)
 
 def train():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    for i in range(6):
-        train_model(i, device)
-        torch.cuda.empty_cache()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--whole", action="store_true")
+    parser.add_argument("--just_attention", action="store_true")
+    parser.add_argument("--with_residual", action="store_true")
+    args = parser.parse_args()
+    config = dict()
+    for arg in vars(args):
+        config[arg] = getattr(args, arg)
+    if (config["whole"]):
+        for i in range(6):
+            train_model(i, "whole", configs["whole"])
+    if (config["just_attention"]):
+        for i in range(6):
+            train_model(i, "just_attention", configs["just_attention"])
+    if (config["with_residual"]):
+        for i in range(6):
+            train_model(i, "with_residual", configs["with_residual"])
 
 if __name__ == "__main__":
     train()

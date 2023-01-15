@@ -14,26 +14,40 @@ import utils.utils as utils
 from utils.constants import *
 
 from simulator import *
+configs = {
+        "whole": {"batch_size": 512, "nr_units": [6, 4, 7], "nr_layers": 4},
+        "just_attention": {"batch_size": 512, "nr_units": [7, 5, 7], "nr_layers": 4},
+        "with_residual": {"batch_size": 2048, "nr_units": [5, 7, 6, 5, 5], "nr_layers": 6}
+        }
 
 def train():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = MultipleSimulator(device).to(device)
+    sims = []
+    for i in range(6):
+        nr_layers = configs["whole"]["nr_layers"]
+        nr_units = configs["whole"]["nr_units"]
+        batch_size = configs["whole"]["batch_size"]
+        a = AttentionSimulator(nr_layers, nr_units).to(device)
+        # load weights
+        ckpt_model_name = get_checkpoint_name(a.name, batch_size, i, "norm" if i == 5 else i, 25, "whole")
+        model_state_dict, _ = torch.load(os.path.join(CHECKPOINTS_PATH, ckpt_model_name), map_location=device)
+        a.load_state_dict(model_state_dict)
+        sims.append(a)
+    model = MultipleSimulator(sims).to(device)
 
-    train_data_set = UnchangedDataset(0, 5, "train", device)
-    val_data_set = UnchangedDataset(0, 5, "val", device)
-    test_data_set = UnchangedDataset(0, 5, "test", device)
+    train_data_set = UnchangedDataset(0, "norm", "train", device)
+    val_data_set = UnchangedDataset(0, "norm", "val", device)
+    test_data_set = UnchangedDataset(0, "norm", "test", device)
 
-    lr = 0.0005
-    inst_name = f"{model.name}_lr{lr}"
+    lr = 0.0003
 
     print(f"Starting to train model {model.name}")
     time_start = time.time()
     criterion = nn.MSELoss()
-    # TODO: what learning rate/schedule
     optimizer = Adam(model.parameters(), lr = lr)
 
     val_loss = 0.0
-    for epoch in range(40):
+    for epoch in range(5):
         # Training
         model.train()
         for batch_idx, (inputs, labels, mask) in enumerate(train_data_set):
@@ -66,7 +80,7 @@ def train():
             print(f'VALIDATION loss: {val_loss:.4f} in epoch {epoch+1}')
 
         # Save model checkpoint
-        ckpt_model_name = f"{inst_name}_ckpt_epoch_{epoch + 1}.pth"
+        ckpt_model_name = f"{model.name}_lr{lr}_ckpt_epoch_{epoch+1}.pth"
         torch.save((model.state_dict(), optimizer.state_dict()), os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
 
 if __name__ == "__main__":

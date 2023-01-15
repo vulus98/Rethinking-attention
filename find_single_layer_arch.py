@@ -17,20 +17,21 @@ import optuna
 
 from simulator import *
 
-def train_model(trial, train_data_set, val_data_set, device):
+num_epochs = 25
 
-    nr_layers = trial.suggest_int("nr_layers", 1, 6)
+def train_model(trial, train_data_set, val_data_set, ext_pref, device):
+
+    nr_layers = trial.suggest_int("nr_layers", 2, 6)
     nr_units = [trial.suggest_int(f"nr_units_{i}", 2, 7) for i in range(nr_layers-1)]
-    batch_size_exp = trial.suggest_int("batch_size_exp", 7, 13)
+    batch_size_exp = trial.suggest_int("batch_size_exp", 8, 12)
     batch_size = 2**batch_size_exp
 
     index_in = train_data_set.index_in
     index_out = train_data_set.index_out
 
     model = AttentionSimulator(nr_layers = nr_layers, nr_units = nr_units).to(device)
-    inst_name = f"{model.name}_bs{batch_size}_fr{index_in}_to{index_out}"
 
-    print(f"Starting to train model {model.name} with batch size {batch_size} from layer {index_in} to layer {index_out}")
+    print(f"Starting to train model {model.name} with batch size {batch_size} from {ext_pref} layer {index_in} to layer {index_out}")
     time_start = time.time()
     criterion = nn.MSELoss()
     optimizer = Adam(model.parameters())
@@ -43,7 +44,7 @@ def train_model(trial, train_data_set, val_data_set, device):
 
     val_loss = 0.0
     train_l = get_batches(train_data_set, batch_size)
-    for epoch in range(50):
+    for epoch in range(num_epochs):
         epoch_start = time.time()
         # Training
         model.train()
@@ -78,11 +79,11 @@ def train_model(trial, train_data_set, val_data_set, device):
         if trial.should_prune():
             raise optuna.exceptions.TrialPruned()
         # Save model checkpoint
-        ckpt_model_name = f"{inst_name}_ckpt_epoch_{epoch + 1}.pth"
-        torch.save((model.state_dict(), optimizer.state_dict()), os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
+    ckpt_model_name = get_checkpoint_name(model.name, batch_size, index_in, index_out, num_epochs, ext_pref)
+    torch.save((model.state_dict(), optimizer.state_dict()), os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
     return val_loss
 
-def test_model(model, batch_size):
+def test_model(model, test_data_set, batch_size):
     print(f"Starting to test model {model.name}")
     test_out_magnitude = torch.mean(torch.abs(test_data_set.output))
     print(f"test_out_magnitude: {test_out_magnitude}")
@@ -99,14 +100,14 @@ def test_model(model, batch_size):
         loss = torch.mean(losses)
         print(f'TEST loss: {loss:.4f} RELATIVE: {((loss/test_out_magnitude)*100):.2f}%')
 
-def train(index_in, index_out):
+def train(index_in, index_out, ext_pref):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    train_data_set = SingleWordsInterResultsDataset(index_in, index_out, "train", device)
-    val_data_set = SingleWordsInterResultsDataset(index_in, index_out, "val", device)
-    test_data_set = SingleWordsInterResultsDataset(index_in, index_out, "test", device)
+    train_data_set = SingleWordsInterResultsDataset(index_in, index_out, "train", device, ext_pref)
+    val_data_set = SingleWordsInterResultsDataset(index_in, index_out, "val", device, ext_pref)
+    test_data_set = SingleWordsInterResultsDataset(index_in, index_out, "test", device, ext_pref)
 
-    trainable = lambda t: train_model(t, train_data_set, val_data_set, device)
+    trainable = lambda t: train_model(t, train_data_set, val_data_set, ext_pref, device)
 
     study = optuna.create_study(direction="minimize")
     study.optimize(trainable, n_trials=30)
@@ -128,17 +129,34 @@ def train(index_in, index_out):
 
     model = AttentionSimulator(nr_layers, nr_units).to(device)
 
-    inst_name = f"{model.name}_bs{batch_size}_fr{index_in}_to{index_out}"
-    ckpt_model_name = f"{inst_name}_ckpt_epoch_50.pth"
+    ckpt_model_name = get_checkpoint_name(model.name, batch_size, index_in, index_out, num_epochs, ext_pref)
     model_state, _ = torch.load(os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
 
     model.load_state_dict(model_state)
 
-    test_model(model, test_data_set, 1024)
+    test_model(model, test_data_set, batch_size)
+    del train_data_set.input
+    del train_data_set.output
+    del val_data_set.input
+    del val_data_set.output
+    del test_data_set.input
+    del test_data_set.output
+    torch.cuda.empty_cache()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=int, help="index of the input", required=True)
-    parser.add_argument("--output", type=int, help="index the output", required=True)
+    parser.add_argument("--output", type=int, help="index of the output", required=True)
+    parser.add_argument("--just_attention", action="store_true")
+    parser.add_argument("--with_residual", action="store_true")
+    parser.add_argument("--whole", action="store_true")
     args = parser.parse_args()
-    train(args.input, args.output)
+    config = dict()
+    for arg in vars(args):
+        config[arg] = getattr(args, arg)
+    if (config["just_attention"]):
+        train(args.input, args.output, "just_attention")
+    if (config["with_residual"]):
+        train(args.input, args.output, "with_residual")
+    if (config["whole"]):
+        train(args.input, args.output, "whole")

@@ -6,4 +6,4 @@
 #SBATCH --time=1440
 eval "$(conda shell.bash hook)"
 conda activate pytorch-transformer
-python -u single_sim.py --input 0 --output norm
+python -u evaluate.py --dataset_name IWSLT --language_direction E2G $1
