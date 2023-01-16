@@ -33,15 +33,16 @@ As previously mentioned, the code was developed on top of an existing implementa
 
 The provided code was run on different GPUs all with a minimum of 11GB of memory, but up to 24GB.
 In case your GPU does not have this much memory you should try to reduce the batch size. However, some of the bigger architecture may not work properly.
-The description on how to run the code is general for any platform, but in the `submission_scripts` folder we left the scripts we used for running
-our jobs on the Euler cluster.
 
+The description on how to run the code is general for any platform. Since we run the code on a cluster which uses slurm, we left in the submission_scripts folder the wrapper scripts which were used to submit jobs. If you want to use them, please either adjust the path output-path argument or create a folder `../sbatch_log` which will collect all the program outputs.
+The folder submission_scripts is organised as the `scripts` folder. The wrapper script for *example_script.py* for the *exaple_approach* is located at *submission_scripts/example_approach/example_script.sh*.
 ## Train baseline transformer
+Note: since we already provide the pretrained transformer this step can be skipped.
 The weights of a pretrained transformer are saved in the directory `./models/binaries/transformer_128.pth`.
 The following parts of the project will use this transformer to extract intermediate values which will be used to train the FFNs to replace attention blocks.
 If you want to train this transformer yourself
 
-1. Execute `./scripts/baseline/training_script.py`
+1. Execute `python3 ./scripts/baseline/training_script.py`
 2. Copy the checkpoint after 20 epochs executing `cp $SCRATCH/models/checkpoint/transformer_ckpt_epoch_20.pth models/binaries/transformer_128.pth`
 
 ## Intermediate data extraction
@@ -185,9 +186,8 @@ Moreover, it will try to fine tune the pretrained networks in the whole transfor
 
 Finally, it also trains the whole transformer with the replaced module from scratch (both the transformer as well as the
 new module will have their weights resetted) and again computes the corresponding BLEU score to see whether the pre-training is necessary.
-
-## Random feature approach
-
 ### Random matrices
-TODO: did we check the initialization of the matrices is really random or are they dependent on each other by the use of deepcopy?
-### Random FFN
+In this approach we wanted to test if randmoly initialized matrices are sufficient to achieve a good BLEU score. The idea is that these matrices extract features of the input representation and as long as the outputs are correlated, attention may still work. The script `scripts/random_embedding/train_random_embedding.py` substitute all qkv matrices with randomly initialized matrices. All the matrices weights are blocked, while the rest of the transformer is trained. To run this experiment execute:
+1. `python3 scripts/random_embedding/train_random_embedding.py`: this will replace all qkv nets with the same randomly initialized matrix.
+2. `python3 scripts/random_embedding/train_random_embedding.py --independent_init`: this will initialize all three matrices independently.
+The BLEU score is reported at the end of every epoch.
