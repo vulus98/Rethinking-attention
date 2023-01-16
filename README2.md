@@ -69,7 +69,7 @@ In order to handle input sentences of varying lengths, we have decided to pad al
 prevent them from influencing the model's inference. 
 
 We tried substituting attention with three layer of abstraction: 
-- *Attention Layer Replacement with Residual (ALRR)*: replaces the MHA and the residual connection
+- *Attention Layer with Residual Replacement(ALRR)*: replaces the MHA and the residual connection
 - *Attention Layer Replacement (ALR)*: replaces only the MHA
 - *Attention Layer Separate heads Replacement (ALSR)*: replaces the same part as *ALR*, but one FFN is trained for each head.
 
