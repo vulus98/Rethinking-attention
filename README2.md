@@ -2,9 +2,10 @@
 This repository contains the code developed for the Deep Learning project 2022.
 In this project we tried to replace the self-attention with feed-forward networks (FFN) to evaluate the importance of attention inside the transformer.
 
-The developed code builds on top of an open-source implementation by Aleksa Godric (who works for Deep Mind
+The developed code builds on top of an open-source implementation by Aleksa Godric, currently emplyed at Deep Mind
 (:link: [ pytorch-original-transformer](https://github.com/gordicaleksa/pytorch-original-transformer)))
-of the original transformer (:link: [Vaswani et al.](https://arxiv.org/abs/1706.03762)). <br/>
+of the original transformer (:link: [Vaswani et al.](https://arxiv.org/abs/1706.03762)). <br/>.
+The original README from his repo can be found in the legacy folder.
 
 ## Table of Contents
   * [Environment setup](#environment-setup)

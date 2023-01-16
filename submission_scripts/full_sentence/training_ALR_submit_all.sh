@@ -21,7 +21,7 @@ fi
 
 ./submission_scripts/utils/create_folder_outputs.sh ALR $1
 for i in {0..5};do
-    echo sbatch --output=../sbatch_log/ALR/$1/training_outputs/ submission_scripts/full_sentence/training_ALR.sh --num_of_curr_trained_layer $i --substitute_class $1 $2
+    echo sbatch --output=../sbatch_log/ALR/$1/training_outputs/%j.out submission_scripts/full_sentence/training_ALR.sh --num_of_curr_trained_layer $i --substitute_class $1 $2
     echo ""
-    sbatch --output=../sbatch_log/ALR/$1/training_outputs/ submission_scripts/full_sentence/training_ALR.sh --num_of_curr_trained_layer $i --substitute_class $1 $2
+    sbatch --output=../sbatch_log/ALR/$1/training_outputs/%j.out submission_scripts/full_sentence/training_ALR.sh --num_of_curr_trained_layer $i --substitute_class $1 $2
 done
