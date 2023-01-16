@@ -2,9 +2,10 @@
 This repository contains the code developed for the Deep Learning project 2022.
 In this project we tried to replace the self-attention with feed-forward networks (FFN) to evaluate the importance of attention inside the transformer.
 
-The developed code builds on top of an open-source implementation by Aleksa Godric (who works for Deep Mind
+The developed code builds on top of an open-source implementation by Aleksa Godric, currently emplyed at Deep Mind
 (:link: [ pytorch-original-transformer](https://github.com/gordicaleksa/pytorch-original-transformer)))
-of the original transformer (:link: [Vaswani et al.](https://arxiv.org/abs/1706.03762)). <br/>
+of the original transformer (:link: [Vaswani et al.](https://arxiv.org/abs/1706.03762)). <br/>.
+The original README from his repo can be found in the legacy folder.
 
 ## Table of Contents
   * [Environment setup](#environment-setup)
@@ -58,7 +59,7 @@ To train our FFNs we first extract the intermediate values that are given as inp
 2. `python3 scripts/extraction/extract_mha.py --path_to_weights models/binaries/transformer_128.pth --batch_size 1400 --dataset_name IWSLT --language_direction E2G --model_name 128emb_20ep --output_path $SCRATCH/mha_outputs`
 
 The first script extracts inputs and outputs of
-- each encoder layer (identified by *whole_layer* in the file name),
+- each encoder layer (identified by *ELR* in the file name),
 - each multi-headed attention (MHA) module (identified by *ALR* in the file name),
 - each "sublayer zero" which consists of the MHA, the layer normalization and the residual connection (identified by *ALRR* in the file name).
 
@@ -75,7 +76,7 @@ In order to handle input sentences of varying lengths, we have decided to pad al
 prevent them from influencing the model's inference. 
 
 We tried substituting attention with three layer of abstraction: 
-- *Attention Layer Replacement with Residual (ALRR)*: replaces the MHA and the residual connection
+- *Attention Layer with Residual Replacement(ALRR)*: replaces the MHA and the residual connection
 - *Attention Layer Replacement (ALR)*: replaces only the MHA
 - *Attention Layer Separate heads Replacement (ALSR)*: replaces the same part as *ALR*, but one FFN is trained for each head.
 
@@ -83,6 +84,7 @@ The architecture used for each approach are listed in
 - `models/definitions/ALRR_FF.py`
 - `models/definitions/ALR_FF.py`
 - `models/definitions/ALSR_FF.py`.
+
 For the final experiment we considered 5 architectures ranging from extra small (XS)
 to extra large (XL). The considered range of number of parameters shows the operating range of the FFN. In particular, the XS network reduces the BLEU score of the transformer, while as the number of parameter grows, so does the BLEU up to saturation with the XL network.
 Each approach uses a different training script. Each training script contains a data loader responsible for loading the data extracted at the previous step and
@@ -93,9 +95,9 @@ The instruction for running the training scripts are listed below.
 ### Training `ALRR`
 
 To train one of the architectures defined in `models/definitions/ALRR.py` for a specific layer run:
-`python3 scripts/full_sentence/training_ALRR --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
+`python3 scripts/full_sentence/training_ALRR.py --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
 For example to train the network *FFNetwork_L* to substitute layer zero run
-`python3 scripts/training_ALRR --num_of_curr_trained_layer 0 --substitute_class FFNetwork_L`.
+`python3 scripts/training_ALRR.py --num_of_curr_trained_layer 0 --substitute_class FFNetwork_L`.
 
 ### Training `ALSR`
 
