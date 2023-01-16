@@ -2,9 +2,9 @@ from torch import nn
 from utils.constants import *
 import torch
 
-class FFNetwork_shrink256(nn.ModuleList):
+class FFNetwork_XS(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_shrink256, self).__init__()
+        super(FFNetwork_XS, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
@@ -21,9 +21,9 @@ class FFNetwork_shrink256(nn.ModuleList):
             data=layer(data)
         return data*mask
 
-class FFNetwork_shrink128(nn.ModuleList):
+class FFNetwork_S(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_shrink128, self).__init__()
+        super(FFNetwork_S, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
@@ -40,9 +40,9 @@ class FFNetwork_shrink128(nn.ModuleList):
             data=layer(data)
         return data*mask
 
-class FFNetwork_shrink8(nn.ModuleList):
+class FFNetwork_M(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_shrink8, self).__init__()
+        super(FFNetwork_M, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
@@ -59,9 +59,9 @@ class FFNetwork_shrink8(nn.ModuleList):
             data=layer(data)
         return data*mask
 
-class FFNetwork_shrink(nn.ModuleList):
+class FFNetwork_L(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_shrink, self).__init__()
+        super(FFNetwork_L, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
@@ -78,9 +78,9 @@ class FFNetwork_shrink(nn.ModuleList):
             data=layer(data)
         return data*mask
 
-class FFNetwork_small(nn.ModuleList):
+class FFNetwork_XL(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_small, self).__init__()
+        super(FFNetwork_XL, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension

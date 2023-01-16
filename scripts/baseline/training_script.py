@@ -193,7 +193,7 @@ def train_transformer(training_config):
             bleu_score = utils.calculate_bleu_score(baseline_transformer, val_token_ids_loader, trg_field_processor)
 
     # Save the latest transformer in the binaries directory
-    torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(BINARIES_PATH, 'replacement_layer_transformer_FF_shrink_mha'))
+    torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(BINARIES_PATH, 'replacement_layer_transformer_FF_L_mha'))
 
 
 if __name__ == "__main__":
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
     parser.add_argument("--checkpoint_freq", type=int, help="checkpoint model saving (epoch) freq", default=1)
     parser.add_argument("--start_point", type=int, help="checkpoint model (epoch) where to resume training from", default=0)
-    parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FF_large", default="FFNetwork_shrink")
+    parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FF_large", default="FFNetwork_L")
     parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth")
     parser.add_argument("--layer", help = "If layer is not specified, all layers are substituted", default = None)
     parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=20)

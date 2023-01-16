@@ -79,30 +79,30 @@ The architecture used for each approach are listed in
 - `models/definitions/ALSR_FF.py`.
 
 Each approach uses a different training script. Each training script contains a data loader responsible for loading the data extracted at the previous step and
-creating batches of a fixed length *MAX_LEN* (using padding). Each training script receives as input the name of the substitute class (e.g. `FFNetwork_shrink`)
+creating batches of a fixed length *MAX_LEN* (using padding). Each training script receives as input the name of the substitute class (e.g. `FFNetwork_L`)
 and the index of the layer to emulate. The training loop iterates over the training data for a specified maximum number of epochs.
 The instruction for running the training scripts are listed below. 
 
 ### Training `ALRR`
 To train one of the architectures defined in `models/definitions/ALRR.py` for a specific layer run:
 `python3 scripts/full_sentence/training_ALRR --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
-For example to train the network *FFNetwork_shrink* to substitute layer zero run
-`python3 scripts/training_ALRR --num_of_curr_trained_layer 0 --substitute_class FFNetwork_shrink`.
+For example to train the network *FFNetwork_L* to substitute layer zero run
+`python3 scripts/training_ALRR --num_of_curr_trained_layer 0 --substitute_class FFNetwork_L`.
 
 ### Training `ALSR`
 To train one of the architectures defined in `models/definitions/ALSR_FF.py` for a specific layer run:
 `python3 scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
-For example to train the network *FFNetwork_shrink* to substitute layer zero with 8 heads, one for each head in the MHA of layer zero, run:
-`python3 scripts/full_sentence/training_ALSR.py --num_of_curr_trained_layer 0 --substitute_class FFNetwork_shrink`.
+For example to train the network *FFNetwork_L* to substitute layer zero with 8 heads, one for each head in the MHA of layer zero, run:
+`python3 scripts/full_sentence/training_ALSR.py --num_of_curr_trained_layer 0 --substitute_class FFNetwork_L`.
 
 ### Training `ALR`
 To train one of the architectures defined in `models/definitions/ALR_FF.py` for a specific layer run:
 `python3 scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
-For example to train the network *FFNetwork_shrink* to substitute layer zero with 8 heads, one for each head in the MHA of layer zero, run:
-`python3 scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer 0 --substitute_class FFNetwork_shrink`.
+For example to train the network *FFNetwork_L* to substitute layer zero with 8 heads, one for each head in the MHA of layer zero, run:
+`python3 scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer 0 --substitute_class FFNetwork_L`.
 This approach was also used to train self-attention in the decoder. The architecture used in the decoder are denoted by the word *decoder* in the class name.
 To train one of this architecture to substitute self-attention in the encoder layer run
-`python3 .scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer [0-5] --substitute_class FFNetwork_decoder_shrink --decoder`
+`python3 .scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer [0-5] --substitute_class FFNetwork_decoder_L --decoder`
 
 In case you are running this code on a cluster which uses slurm, the script `submission_scripts/training_ALR_FF_submit_all.sh` can be used to automatically
 submit the training of a network for each layer (0-5).
@@ -115,7 +115,7 @@ All the networks trained in the previous step can be evaluated using `scripts/fu
 The validation is performed substituting the trained FFN in the pretrained transformer and computing the BLUE score on the validation data.
 The script receives as inputs the following parameters: 
 - `substitute_type`: type of approach to use for substitution. Must be in [`ALRR`, `ALR`, `ALSR`, `none`]. If `none`, no substitution takes place;
-- `substitute_class`: class that substitutes attention e.g. *FFNetwork_shrink*;
+- `substitute_class`: class that substitutes attention e.g. *FFNetwork_L*;
 - `layers`: list of layers to substitute. If layer is not specified, all layers are substituted;
 - `epoch`: epoch checkpoint to use;
 - `untrained`: bool. If set, the substitute FF is not loaded with the trained weights and it is left untrained. This can be set to test the performance of a randomly substituted FFN.
@@ -124,9 +124,9 @@ The last four attributes appended with `_d` can be used to substitute self-atten
 in the decoder layer.
 To run the evaluation script the following command can be used
 `python3 scripts/full_sentence/validation_script.py --substitute_type <subs_type> --substitute_class <class_name> --layers [0-5]* --epoch <epoch number>`
-As an example if you want to evaluate the performance of *FFNetwork_shrink* in the `ALR` approach, substituting all layers in the encoder with
+As an example if you want to evaluate the performance of *FFNetwork_L* in the `ALR` approach, substituting all layers in the encoder with
 the checkpoint at epoch 21 the following command can be used:
-`python3 scripts/full_sentence/validation_script.py --substitute_type ALR --substitute_class FFNetwork_shrink --epoch 21`
+`python3 scripts/full_sentence/validation_script.py --substitute_type ALR --substitute_class FFNetwork_L --epoch 21`
 
 ## Average approach
 

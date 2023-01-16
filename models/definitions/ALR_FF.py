@@ -2,9 +2,9 @@ from torch import nn
 from utils.constants import *
 import torch
 
-class FFNetwork_shrink256(nn.ModuleList):
+class FFNetwork_XS(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_shrink256, self).__init__()
+        super(FFNetwork_XS, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
@@ -21,9 +21,9 @@ class FFNetwork_shrink256(nn.ModuleList):
             data=layer(data)
         return data*mask
 
-class FFNetwork_shrink128(nn.ModuleList):
+class FFNetwork_S(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_shrink128, self).__init__()
+        super(FFNetwork_S, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
@@ -40,9 +40,9 @@ class FFNetwork_shrink128(nn.ModuleList):
             data=layer(data)
         return data*mask
 
-class FFNetwork_shrink8(nn.ModuleList):
+class FFNetwork_M(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_shrink8, self).__init__()
+        super(FFNetwork_M, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
@@ -59,9 +59,9 @@ class FFNetwork_shrink8(nn.ModuleList):
             data=layer(data)
         return data*mask
 
-class FFNetwork_shrink(nn.ModuleList):
+class FFNetwork_L(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_shrink, self).__init__()
+        super(FFNetwork_L, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
@@ -78,9 +78,9 @@ class FFNetwork_shrink(nn.ModuleList):
             data=layer(data)
         return data*mask
 
-class FFNetwork_small(nn.ModuleList):
+class FFNetwork_XL(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_small, self).__init__()
+        super(FFNetwork_XL, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
@@ -221,9 +221,9 @@ class FFNetwork(nn.ModuleList):
                 nn.init.uniform_(layer.weight)
                 layer.bias.data.fill_(0.01)
 
-class FFNetwork_decoder_shrink128(nn.ModuleList):
+class FFNetwork_decoder_S(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_decoder_shrink128, self).__init__()
+        super(FFNetwork_decoder_S, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
@@ -249,9 +249,9 @@ class FFNetwork_decoder_shrink128(nn.ModuleList):
             outputs.append(o * padding_mask[:, i].view((-1, 1)).repeat_interleave(self.model_dimension, dim = 1))
         return torch.stack(outputs, dim = 1)
 
-class FFNetwork_decoder_shrink256(nn.ModuleList):
+class FFNetwork_decoder_XS(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_decoder_shrink256, self).__init__()
+        super(FFNetwork_decoder_XS, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
@@ -277,9 +277,9 @@ class FFNetwork_decoder_shrink256(nn.ModuleList):
             outputs.append(o * padding_mask[:, i].view((-1, 1)).repeat_interleave(self.model_dimension, dim = 1))
         return torch.stack(outputs, dim = 1)
 
-class FFNetwork_decoder_shrink128(nn.ModuleList):
+class FFNetwork_decoder_S(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_decoder_shrink128, self).__init__()
+        super(FFNetwork_decoder_S, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
@@ -305,9 +305,9 @@ class FFNetwork_decoder_shrink128(nn.ModuleList):
             outputs.append(o * padding_mask[:, i].view((-1, 1)).repeat_interleave(self.model_dimension, dim = 1))
         return torch.stack(outputs, dim = 1)
 
-class FFNetwork_decoder_shrink8(nn.ModuleList):
+class FFNetwork_decoder_M(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_decoder_shrink8, self).__init__()
+        super(FFNetwork_decoder_M, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
@@ -333,9 +333,9 @@ class FFNetwork_decoder_shrink8(nn.ModuleList):
             outputs.append(o * padding_mask[:, i].view((-1, 1)).repeat_interleave(self.model_dimension, dim = 1))
         return torch.stack(outputs, dim = 1)
     
-class FFNetwork_decoder_shrink(nn.ModuleList):
+class FFNetwork_decoder_L(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_decoder_shrink, self).__init__()
+        super(FFNetwork_decoder_L, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension
@@ -361,9 +361,9 @@ class FFNetwork_decoder_shrink(nn.ModuleList):
             outputs.append(o * padding_mask[:, i].view((-1, 1)).repeat_interleave(self.model_dimension, dim = 1))
         return torch.stack(outputs, dim = 1)
     
-class FFNetwork_decoder_small(nn.ModuleList):
+class FFNetwork_decoder_XL(nn.ModuleList):
     def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
-        super(FFNetwork_decoder_small, self).__init__()
+        super(FFNetwork_decoder_XL, self).__init__()
         self.sentence_length=sentence_length
         self.model_dimension=model_dimension
         self.width=self.sentence_length*self.model_dimension

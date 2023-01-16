@@ -4,8 +4,8 @@ if [ $# == 0 ]; then
     echo "submission_scripts/full_sentence/validation_script_ALR_submit_all.sh <architecture_name> [--decoder]?"
     echo
     echo "Args:"
-    echo "<architecture_name> in [ FFNetwork_shrink,FFNetwork_shrink8,  FFNetwork_small,FF Network_shrink256, FFNetwork_shrink128]"
-    echo -e "\t\t\t [ FFNetwork_decoder_shrink, FFNetwork_decoder_shrink8,  FFNetwork_decoder_small, FFNetwork_decoder_shrink256, FFNetwork_decoder_shrink128]"
+    echo "<architecture_name> in [ FFNetwork_L,FFNetwork_M,  FFNetwork_XL,FF Network_XS, FFNetwork_S]"
+    echo -e "\t\t\t [ FFNetwork_decoder_L, FFNetwork_decoder_M,  FFNetwork_decoder_XL, FFNetwork_decoder_XS, FFNetwork_decoder_S]"
     echo "--decoder: set it if the layer you want to substitute decoder layers"
     echo "modify the parameter epoch as you need in the script"
     exit
