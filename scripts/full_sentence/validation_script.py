@@ -104,14 +104,14 @@ if __name__ == "__main__":
     parser.add_argument("--layers", nargs='+',type = int ,help = "List of layers to substitute. If layer is not specified, all layers are substituted")
     parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.")
     parser.add_argument("--untrained", action = "store_true")
-    parser.add_argument("--substitute_type", type = str, help="Type of approach to use for substitution", choices=["mha_full", "mha_only", "mha_separate_heads", "none"], default="none")
+    parser.add_argument("--substitute_type", type = str, help="Type of approach to use for substitution", choices=["ALRR", "mha_only", "mha_separate_heads", "none"], default="none")
     
     # Params for decoder substitution
     parser.add_argument("--substitute_class_d", type=str, help="class that substitutes attention e.g. FFNetwork_shrink", default="None")
     parser.add_argument("--layers_d", nargs='+',type = int ,help = "List of layers to substitute. If layer is not specified, all layers are substituted")
     parser.add_argument("--epoch_d", type = int, help="Epoch checkpoint to use.")
     parser.add_argument("--untrained_d", action = "store_true")
-    parser.add_argument("--substitute_type_d", type = str, help="Type of approach to use for substitution", choices=["mha_full", "mha_only", "mha_separate_heads", "none"], default="none")
+    parser.add_argument("--substitute_type_d", type = str, help="Type of approach to use for substitution", choices=["ALRR", "mha_only", "mha_separate_heads", "none"], default="none")
     parser.add_argument("--substitute_model_path_d", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = None)
     
     # Decoding related args

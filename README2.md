@@ -69,12 +69,12 @@ In order to handle input sentences of varying lengths, we have decided to pad al
 prevent them from influencing the model's inference. 
 
 We tried substituting attention with three layer of abstraction: 
-- *mha_full*: replaces the MHA and the residual connection
+- *ALRR*: replaces the MHA and the residual connection
 - *mha_only*: replaces only the MHA
 - *separate_heads*: replaces the same part as *mha_only*, but one FFN is trained for each head.
 
 The architecture used for each approach are listed in 
-- `models/definitions/full_FF.py`
+- `models/definitions/ALRR_FF.py`
 - `models/definitions/mha_only_FF.py`
 - `models/definitions/mha_FF.py`.
 
@@ -83,11 +83,11 @@ creating batches of a fixed length *MAX_LEN* (using padding). Each training scri
 and the index of the layer to emulate. The training loop iterates over the training data for a specified maximum number of epochs.
 The instruction for running the training scripts are listed below. 
 
-### Training `mha_full`
-To train one of the architectures defined in `models/definitions/full_FF.py` for a specific layer run:
-`python3 scripts/full_sentence/training_full_FF.py --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
+### Training `ALRR`
+To train one of the architectures defined in `models/definitions/ALRR.py` for a specific layer run:
+`python3 scripts/full_sentence/training_ALRR --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
 For example to train the network *FFNetwork_shrink* to substitute layer zero run
-`python3 scripts/training_full_FF.py --num_of_curr_trained_layer 0 --substitute_class FFNetwork_shrink`.
+`python3 scripts/training_ALRR --num_of_curr_trained_layer 0 --substitute_class FFNetwork_shrink`.
 
 ### Training `separate_heads`
 To train one of the architectures defined in `models/definitions/mha_FF.py` for a specific layer run:
@@ -114,7 +114,7 @@ The script currently assumes a directory `../sbatch_log` which will collect all 
 All the networks trained in the previous step can be evaluated using `scripts/full_sentence/validation_script.py`.
 The validation is performed substituting the trained FFN in the pretrained transformer and computing the BLUE score on the validation data.
 The script receives as inputs the following parameters: 
-- `substitute_type`: type of approach to use for substitution. Must be in [`mha_full`, `mha_only`, `mha_separate_heads`, `none`]. If `none`, no substitution takes place;
+- `substitute_type`: type of approach to use for substitution. Must be in [`ALRR`, `mha_only`, `mha_separate_heads`, `none`]. If `none`, no substitution takes place;
 - `substitute_class`: class that substitutes attention e.g. *FFNetwork_shrink*;
 - `layers`: list of layers to substitute. If layer is not specified, all layers are substituted;
 - `epoch`: epoch checkpoint to use;

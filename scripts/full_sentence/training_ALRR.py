@@ -17,7 +17,7 @@ path_root = Path(__file__).parents[2]
 sys.path.append(str(path_root))
 
 from utils.constants import MHA_ONLY_CHECKPOINT_FORMAT, SCRATCH, MAX_LEN,CHECKPOINTS_SCRATCH
-import models.definitions.full_FF as nets
+import models.definitions.ALRR_FF as nets
 
 DATA_PATH=os.path.join(SCRATCH, "layer_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     for arg in vars(args):
         training_config[arg] = getattr(args, arg)
 
-    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"mha_full" ,training_config["substitute_class"], f"layer{training_config['num_of_curr_trained_layer']}")
+    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"ALRR" ,training_config["substitute_class"], f"layer{training_config['num_of_curr_trained_layer']}")
     os.makedirs(training_config["checkpoints_folder"], exist_ok = True)
     print("Training arguments parsed")
     print("Training layer {0}".format(training_config["num_of_curr_trained_layer"]))

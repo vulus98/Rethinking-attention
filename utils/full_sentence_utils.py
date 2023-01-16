@@ -446,7 +446,7 @@ def substitute_separate_mha(baseline_transformer, substitute_class, substitute_m
         replace_mha_separate_heads(baseline_transformer, ff_nets, l, device)
       
 def substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained):
-    import models.definitions.full_FF as m
+    import models.definitions.ALRR_FF as m
     FF_net =getattr(m, substitute_class)
     print(f"Substituing attention with {FF_net}")
     mha_to_mha2(baseline_transformer)
@@ -473,14 +473,14 @@ def substitute_attention(baseline_transformer, substitute_class, substitute_mode
             substitute_mha_only_encoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
         else:
             substitute_mha_only_decoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
-    elif t == "mha_full":
+    elif t == "ALRR":
         print("Substitute ELR layer")
         substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
     elif t == "mha_separate_heads":
         print("Substitute separate mha layer")
         substitute_separate_mha(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
     else:
-        raise ValueError("Attention type in ['mha_only', 'mha_full', 'mha_separate_heads']")
+        raise ValueError("Attention type in ['mha_only', 'ALRR', 'mha_separate_heads']")
 def pad_shape(batch, masks = False):
     shape = batch.shape
     if masks:
