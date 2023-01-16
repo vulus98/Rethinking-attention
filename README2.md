@@ -55,7 +55,7 @@ If you want to train this transformer yourself
 
 To train our FFNs we first extract the intermediate values that are given as input and output to the attention module. To extract the intermediate data run
 1. `python3 scripts/extraction/extract.py --path_to_weights models/binaries/transformer_128.pth --batch_size 1400 --dataset_name IWSLT --language_direction E2G --model_name 128emb_20ep`
-2. `python scripts/extraction/extract_mha.py --batch_size 1400 --dataset_name IWSLT --language_direction E2G --model_name 128emb_20ep --path_to_weights models/binaries/transformer_128.pth --output_path $SCRATCH/mha_outputs`
+2. `python3 scripts/extraction/extract_mha.py --path_to_weights models/binaries/transformer_128.pth --batch_size 1400 --dataset_name IWSLT --language_direction E2G --model_name 128emb_20ep --output_path $SCRATCH/mha_outputs`
 
 The first script extracts inputs and outputs of
 - each encoder layer (identified by *whole_layer* in the file name),
@@ -140,7 +140,10 @@ the checkpoint at epoch 21 the following command can be used:
 
 ## Average approach
 
-In this approach, the FFN takes in the concatenation of a word representation and the average of the representation of all the words in the sentence and produces the updated word representations as output. This is done for all words in each sentence. The idea behind this approach is to understand if the average of the word representation is enough information to learn the next representation. Moreover, the advantage of this approach is that it is not dependent on the sentence length.
+In this approach, the FFN takes in the concatenation of a word representation and the average of the representations of all the words in the sentence and
+produces the updated word representations as output. This is done for all words in each sentence.
+The idea behind this approach is to understand if the average of the word representations is enough information to learn the next representation.
+Moreover, the advantage of this approach is that it is not dependent on the sentence length.
 
 Similarly to the full sentence approach, the average approach tries to replace the attention with three level of abstraction:
 - The entire encoder layer (referenced as `ELR`).
@@ -152,9 +155,9 @@ This means that no intermediate layer activations are taken into consideration a
 
 If you have access to a cluster with slurm running, there are some convenience scripts in the `submission_scripts` folder.
 
-### Architectures exploration
+### Architecture exploration
 
-The optuna package was used to perform a randomized grid search with a manually defined search spaceto find a good architecture that
+The optuna package was used to perform a randomized grid search with a manually defined search space to find a good architecture that
 could substitute the attention blocks for all three approaches of layer replacement (`ALR`, `ALRR`, `ELR`) as well
 as for the replacement of the whole encoder.
 The best performing architectures are used in the following steps to train FFN that simulate the substituted blocks.
@@ -184,6 +187,10 @@ After having put the found configurations in `sim_all_pretrain.py` this script w
 The training can be run with the following command
 `python3 scripts/averaging/sim_all_pretrain.py --[ELR|ALR|ALRR]`. 
 
+After having pretrained the layers for the ELR approach, the obtained layers can be further trained by putting them together and trying to replace the whole encoder,
+that is they are trained with the encoder input and the encoder ouput. The corresponding command is:
+`python3 scripts/averaging/sim_all_together.py`. 
+
 For the approach replacing the whole encoder, no further training is required, as this is already done in `single_sim.py` when searching for a good architecture.
 
 ### Evaluation
@@ -202,6 +209,7 @@ new module will have their weights resetted) and again computes the correspondin
 In this approach we wanted to test if randmoly initialized matrices are sufficient to achieve a good BLEU score.
 The idea is that these matrices extract features of the input representation and as long as the outputs are correlated, attention may still work.
 The script `scripts/random_embedding/train_random_embedding.py` substitutes all qkv matrices with randomly initialized matrices.
+
 All the matrices weights are frozen, while the rest of the transformer is trained. To run this experiment execute:
 1. `python3 scripts/random_embedding/train_random_embedding.py`: this will replace all qkv nets with the same randomly initialized matrix.
 2. `python3 scripts/random_embedding/train_random_embedding.py --independent_init`: this will initialize all three matrices independently.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-sbatch evaluate.sh --vanilla
-sbatch evaluate.sh --single_sim
-sbatch evaluate.sh --ELR
-sbatch evaluate.sh --ALR
-sbatch evaluate.sh --ALRR
+sbatch submission_scripts/averaging/evaluate.sh --vanilla
+sbatch submission_scripts/averaging/evaluate.sh --single_sim
+sbatch submission_scripts/averaging/evaluate.sh --ELR
+sbatch submission_scripts/averaging/evaluate.sh --ALR
+sbatch submission_scripts/averaging/evaluate.sh --ALRR

@@ -22,7 +22,7 @@ num_epochs = 40
 def train_model(trial, train_data_set, val_data_set, device):
 
     nr_layers = trial.suggest_int("nr_layers", 4, 8)
-    nr_units = [trial.suggest_int(f"nr_units_{i}", 1, 7) for i in range(nr_layers-1)]
+    nr_units = [trial.suggest_int(f"nr_units_{i}", 1, 8) for i in range(nr_layers-1)]
 
     index_in = train_data_set.index_in
     index_out = train_data_set.index_out

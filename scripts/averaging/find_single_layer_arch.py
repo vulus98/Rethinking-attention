@@ -17,7 +17,6 @@ from utils.constants import *
 from utils.simulator import *
 
 num_epochs = 25
-print("20")
 def train_model(trial, train_data_set, val_data_set, ext_pref, device):
 
     nr_layers = trial.suggest_int("nr_layers", 2, 6)
