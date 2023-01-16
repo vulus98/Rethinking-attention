@@ -42,7 +42,7 @@ The following parts of the project will use this transformer to extract intermed
 If you want to train this transformer yourself
 
 1. Execute `./scripts/baseline/training_script.py`
-2. Copy the checkpoint after 20 epochs executing `cp models/checkpoint/transformer_ckpt_epoch_20.pth models/binaries/transformer_128.pth`
+2. Copy the checkpoint after 20 epochs executing `cp $SCRATCH/models/checkpoint/transformer_ckpt_epoch_20.pth models/binaries/transformer_128.pth`
 
 ## Intermediate data extraction
 
