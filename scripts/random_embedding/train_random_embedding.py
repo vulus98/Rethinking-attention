@@ -85,6 +85,10 @@ def get_train_val_loop(baseline_transformer, custom_lr_optimizer, kl_div_loss, l
 
     return train_val_loop
 
+def init_normal(m):
+    if type(m) == nn.Linear:
+        nn.init.uniform_(m.weight)
+
 
 def train_transformer(training_config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
@@ -121,14 +125,21 @@ def train_transformer(training_config):
     # exclude the in-projection weights from training
     # encoder
     for linear in [l.multi_headed_attention.qkv_nets for l in baseline_transformer.encoder.encoder_layers]:
-        for l in linear:
+        for i,l in enumerate(linear):
+            # use the modules apply function to recursively apply the initialization
+            if training_config["independent_init"]:
+                l.apply(init_normal)
             l.requires_grad_(False)
     # decoder has two attentions
     for linear in [l.src_multi_headed_attention.qkv_nets for l in baseline_transformer.decoder.decoder_layers]:
-        for l in linear:
+        for i,l in enumerate(linear):
+            if training_config["independent_init"]:
+                l.apply(init_normal)
             l.requires_grad_(False)
     for linear in [l.trg_multi_headed_attention.qkv_nets for l in baseline_transformer.decoder.decoder_layers]:
-        for l in linear:
+        for i,l in enumerate(linear):
+            if training_config["independent_init"]:
+                l.apply(init_normal)
             l.requires_grad_(False)
     custom_lr_optimizer = CustomLRAdamOptimizer(
             Adam(filter(lambda p: p.requires_grad, baseline_transformer.parameters()), betas=(0.9, 0.98), eps=1e-9),
@@ -166,8 +177,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # According to the paper I infered that the baseline was trained for ~19 epochs on the WMT-14 dataset and I got
     # nice returns up to epoch ~20 on IWSLT as well (nice round number)
-    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=20)
-    # You should adjust this for your particular machine (I have RTX 2080 with 8 GBs of VRAM so 1500 fits nicely!)
+    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=40)
     parser.add_argument("--batch_size", type=int, help="target number of tokens in a src/trg batch", default=1500)
 
     # Data related args
@@ -178,6 +188,8 @@ if __name__ == "__main__":
     # Logging/debugging/checkpoint related (helps a lot with experimentation)
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
     parser.add_argument("--checkpoint_freq", type=int, help="checkpoint model saving (epoch) freq", default=1)
+    parser.add_argument("--independent_init", help="initialize qkv independently", action = "store_true")
+    
     args = parser.parse_args()
 
     # Wrapping training configuration into a dictionary
