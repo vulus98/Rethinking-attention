@@ -1,341 +1,217 @@
 ## The Original Transformer (PyTorch) :computer: = :rainbow:
-This repo contains PyTorch implementation of the original transformer paper (:link: [Vaswani et al.](https://arxiv.org/abs/1706.03762)). <br/>
-It's aimed at making it **easy to start playing and learning** about transformers. <br/>
+This repository contains the code developed for the Deep Learning project 2022.
+In this project we tried to replace the self-attention with feed-forward networks (FFN) to evaluate the importance of attention inside the transformer.
+
+The developed code builds on top of an open-source implementation by Aleksa Godric, currently emplyed at Deep Mind
+(:link: [ pytorch-original-transformer](https://github.com/gordicaleksa/pytorch-original-transformer)))
+of the original transformer (:link: [Vaswani et al.](https://arxiv.org/abs/1706.03762)). <br/>.
 
 ## Table of Contents
-  * [What are transformers?](#what-are-transformers)
-  * [Understanding transformers](#understanding-transformers)
-  * [Machine translation](#machine-translation)
-  * [Setup](#setup)
-  * [Usage](#usage)
-  * [Hardware requirements](#hardware-requirements)
+  * [Environment setup](#environment-setup)
+  * [Code overview](#code-overview)
+  * [Train baseline transformer](#train-baseline-transformer)
+  * [Intermediate data extraction](#intermediate-data-extraction)
+  * [Full sentence approach](#full-sentence-approach)
+  * [Average approach](#average-approach)
+  * [Random feature appraoch](#random-feature-approach)
 
-## What are transformers
+## Environment setup
 
-Transformers were originally proposed by Vaswani et al. in a seminal paper called [Attention Is All You Need](https://arxiv.org/pdf/1706.03762.pdf).
+1. Navigate into the project directory `cd path_to_repo`
+2. Run `conda env create` from project directory (this will create a brand new conda environment).
+3. Run `activate pytorch-transformer` (for running scripts from your console or set the interpreter in your IDE)
+4. Run `export SCRATCH=path_to_outputs`, where `path_to_outputs` is the directory where you want the output files to be stored. If you are running this code on the euler cluster, the variable is already defined.
+5. Execute `./scripts/download_iwslt.sh` to download the IWSLT dataset which will be used in this project.
 
-You probably heard of transformers one way or another. **GPT-3 and BERT** to name a few well known ones :unicorn:. The main idea
-is that they showed that you don't have to use recurrent or convolutional layers and that simple architecture coupled with attention is super powerful. It
-gave the benefit of **much better long-range dependency modeling** and the architecture itself is highly **parallelizable** (:computer::computer::computer:) which leads to better compute efficiency!
+In the following, all the commands are assumed to be run from the root of the repository.
 
-Here is how their beautifully simple architecture looks like:
+## Code overview
 
-<p align="center">
-<img src="data/readme_pics/transformer_architecture.PNG" width="350"/>
-</p>
+As previously mentioned, the code was developed on top of an existing implementation of the transformer. Our main contribution to this code resides in
+- the folder `scripts` which contains scripts for extracting intermediate data, training different architectures and evaluating them in the transformer.
+- The file `simulator.py` which contains the classes and functions for substituting FFN in the transformer (for the average approach) with three different layers of abstraction: the entire encoder, the MHA and the residual connection and the MHA only.
+- The file `full_sentence_utils` which contains the classes and functions for substituting FFN in the transformer (for the `full_sentence` approach).
 
-## Understanding transformers
+The provided code was run on different GPUs all with a minimum of 11GB of memory, but up to 24GB.
+In case your GPU does not have this much memory you should try to reduce the batch size. However, some of the bigger architecture may not work properly.
 
-This repo is supposed to be a learning resource for understanding transformers as the original transformer by itself is not a SOTA anymore.
+The description on how to run the code is general for any platform. Since we run the code on a cluster which uses slurm, we left in the `submission_scripts` folder
+the wrapper scripts which were used to submit jobs. If you want to use them, please either adjust the path output-path argument or create a folder `../sbatch_log`
+which will collect all the program outputs.
+The folder `submission_scripts` is organised as the `scripts` folder.
+The wrapper script for *example_script.py* for the *exaple_approach* is located at *submission_scripts/example_approach/example_script.sh*.
 
-For that purpose the code is (hopefully) well commented and I've included the `playground.py` where I've visualized a couple
-of concepts which are hard to explain using words but super simple once visualized. So here we go!
+## Train baseline transformer
 
-### Positional Encodings
+Note: since we already provide the pretrained transformer this step can be skipped.
+The weights of a pretrained transformer are saved in the directory `./models/binaries/transformer_128.pth`.
+The following parts of the project will use this transformer to extract intermediate values which will be used to train the FFNs to replace attention blocks.
+If you want to train this transformer yourself
 
-Can you parse this one in a glimpse of the eye?
+1. Execute `python3 ./scripts/baseline/training_script.py`
+2. Copy the checkpoint after 20 epochs executing `cp $SCRATCH/models/checkpoint/transformer_ckpt_epoch_20.pth models/binaries/transformer_128.pth`
 
-<p align="left">
-<img src="data/readme_pics/positional_encoding_formula.PNG"/>
-</p>
+## Intermediate data extraction
 
-Neither can I. Running the `visualize_positional_encodings()` function from `playground.py` we get this:
+To train our FFNs we first extract the intermediate values that are given as input and output to the attention module. To extract the intermediate data run
+1. `python3 scripts/extraction/extract.py --path_to_weights models/binaries/transformer_128.pth --batch_size 1400 --dataset_name IWSLT --language_direction E2G --model_name 128emb_20ep`
+2. `python3 scripts/extraction/extract_mha.py --path_to_weights models/binaries/transformer_128.pth --batch_size 1400 --dataset_name IWSLT --language_direction E2G --model_name 128emb_20ep --output_path $SCRATCH/mha_outputs`
 
-<p align="center">
-<img src="data/readme_pics/positional_encoding_visualized.jpg"/>
-</p>
+The first script extracts inputs and outputs of
+- each encoder layer (identified by *ELR* in the file name),
+- each multi-headed attention (MHA) module (identified by *ALR* in the file name),
+- each "sublayer zero" which consists of the MHA, the layer normalization and the residual connection (identified by *ALRR* in the file name).
 
-Depending on the position of your source/target token you "pick one row of this image" and you add it to it's embedding vector, that's it.
-They could also be learned, but it's just more fancy to do it like this, obviously! :nerd_face:
+The second script extracts inputs and outputs of 
+- each MHA excluded the linear layer which mixes the values extracted by each head. This is to enable learning the output of each head separately as in the 'separate head' approach.
 
-### Custom Learning Rate Schedule
+At the end of this section, your SCRATCH folder should contain one folder *output_layers* containing the output of the first script and one folder *mha_outputs*
+with the outputs of the second script. These values are used to train FFNs which replace attention with different layers of abstraction.
 
-Similarly can you parse this one in `O(1)`?
+## Full sentence approach
 
-<p align="left">
-<img src="data/readme_pics/lr_formula.PNG"/>
-</p>
+In this approach, the FFN takes in the concatenated word representations of a sentence as input and produces updated word representations as output in a single pass.
+In order to handle input sentences of varying lengths, we have decided to pad all sentences to a maximum fixed length and mask the padded values with zeros to
+prevent them from influencing the model's inference. 
 
-Noup? So I thought, here it is visualized:
+We tried substituting attention with three layer of abstraction: 
+- *Attention Layer with Residual Replacement(ALRR)*: replaces the MHA and the residual connection
+- *Attention Layer Replacement (ALR)*: replaces only the MHA
+- *Attention Layer Separate heads Replacement (ALSR)*: replaces the same part as *ALR*, but one FFN is trained for each head.
 
-<p align="center">
-<img src="data/readme_pics/custom_learning_rate_schedule.PNG"/>
-</p>
+The architecture used for each approach are listed in 
+- `models/definitions/ALRR_FF.py`
+- `models/definitions/ALR_FF.py`
+- `models/definitions/ALSR_FF.py`.
 
-It's super easy to understand now. Now whether this part was crucial for the success of transformer? I doubt it.
-But it's cool and makes things more complicated. :nerd_face: (`.set_sarcasm(True)`)
+For the final experiment we considered 5 architectures ranging from extra small (XS)
+to extra large (XL). The considered range of number of parameters shows the operating range of the FFN. In particular, the XS network reduces the BLEU score of the transformer, while as the number of parameter grows, so does the BLEU up to saturation with the XL network.
+Each approach uses a different training script. Each training script contains a data loader responsible for loading the data extracted at the previous step and
+creating batches of a fixed length *MAX_LEN* (using padding). Each training script receives as input the name of the substitute class (e.g. `FFNetwork_L`)
+and the index of the layer to emulate. The training loop iterates over the training data for a specified maximum number of epochs.
+The instruction for running the training scripts are listed below. 
 
-*Note: model dimension is basically the size of the embedding vector, baseline transformer used 512, the big one 1024*
+### Training `ALRR`
 
-### Label Smoothing
+To train one of the architectures defined in `models/definitions/ALRR.py` for a specific layer run:
+`python3 scripts/full_sentence/training_ALRR.py --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
+For example to train the network *FFNetwork_L* to substitute layer zero run
+`python3 scripts/training_ALRR.py --num_of_curr_trained_layer 0 --substitute_class FFNetwork_L`.
 
-First time you hear of label smoothing it sounds tough but it's not. You usually set your target vocabulary distribution
-to a `one-hot`. Meaning 1 position out of 30k (or whatever your vocab size is) is set to 1. probability and everything else to 0.
+### Training `ALSR`
 
-<p align="center">
-<img src="data/readme_pics/label_smoothing.PNG" width="700"/>
-</p>
+To train one of the architectures defined in `models/definitions/ALSR_FF.py` for a specific layer run:
+`python3 scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
+For example to train the network *FFNetwork_L* to substitute layer zero with 8 heads, one for each head in the MHA of layer zero, run:
+`python3 scripts/full_sentence/training_ALSR.py --num_of_curr_trained_layer 0 --substitute_class FFNetwork_L`.
 
-In label smoothing instead of placing 1. on that particular position you place say 0.9 and you evenly distribute the rest of
-the "probability mass" over the other positions 
-(that's visualized as a different shade of purple on the image above in a fictional vocab of size 4 - hence 4 columns)
+### Training `ALR`
 
-*Note: Pad token's distribution is set to all zeros as we don't want our model to predict those!*
+To train one of the architectures defined in `models/definitions/ALR_FF.py` for a specific layer run:
+`python3 scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
+For example to train the network *FFNetwork_L* to substitute layer zero with 8 heads, one for each head in the MHA of layer zero, run:
+`python3 scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer 0 --substitute_class FFNetwork_L`.
+This approach was also used to train self-attention in the decoder. The architecture used in the decoder are denoted by the word *decoder* in the class name.
+To train one of this architecture to substitute self-attention in the encoder layer run
+`python3 .scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer [0-5] --substitute_class FFNetwork_decoder_L --decoder`
 
-Aside from this repo (well duh) I would highly recommend you go ahead and read [this amazing blog](https://jalammar.github.io/illustrated-transformer/) by Jay Alammar!
+In case you are running this code on a cluster which uses slurm, the script `submission_scripts/training_ALR_FF_submit_all.sh` can be used to automatically
+submit the training of a network for each layer (0-5).
+If you use that script, please make sure that the path specified for the output of the program exists.
+The script currently assumes a directory `../sbatch_log` which will collect all the outputs.
 
-## Machine translation
+### Evaluation
 
-Transformer was originally trained for the NMT (neural machine translation) task on the [WMT-14 dataset](https://torchtext.readthedocs.io/en/latest/datasets.html#wmt14) for:
-* English to German translation task (achieved 28.4 [BLEU score](https://en.wikipedia.org/wiki/BLEU))
-* English to French translation task (achieved 41.8 BLEU score)
- 
-What I did (for now) is I trained my models on the [IWSLT dataset](https://torchtext.readthedocs.io/en/latest/datasets.html#iwslt), which is much smaller, for the
-English-German language pair, as I speak those languages so it's easier to debug and play around.
+All the networks trained in the previous step can be evaluated using `scripts/full_sentence/validation_script.py`.
+The validation is performed substituting the trained FFN in the pretrained transformer and computing the BLUE score on the validation data.
+The script receives as inputs the following parameters: 
+- `substitute_type`: type of approach to use for substitution. Must be in [`ALRR`, `ALR`, `ALSR`, `none`]. If `none`, no substitution takes place;
+- `substitute_class`: class that substitutes attention e.g. *FFNetwork_L*;
+- `layers`: list of layers to substitute. If layer is not specified, all layers are substituted;
+- `epoch`: epoch checkpoint to use;
+- `untrained`: bool. If set, the substitute FF is not loaded with the trained weights and it is left untrained. This can be set to test the performance of a randomly substituted FFN.
 
-I'll also train my models on WMT-14 soon, take a look at the [todos](#todos) section.
+The last four attributes appended with `_d` can be used to substitute self-attention in the decoder. Currently, only the `ALR` supports substitution
+in the decoder layer.
+To run the evaluation script the following command can be used
+`python3 scripts/full_sentence/validation_script.py --substitute_type <subs_type> --substitute_class <class_name> --layers [0-5]* --epoch <epoch number>`
+As an example if you want to evaluate the performance of *FFNetwork_L* in the `ALR` approach, substituting all layers in the encoder with
+the checkpoint at epoch 21 the following command can be used:
+`python3 scripts/full_sentence/validation_script.py --substitute_type ALR --substitute_class FFNetwork_L --epoch 21`
 
----
+## Average approach
 
-Anyways! Let's see what this repo can practically do for you! Well it can translate!
+In this approach, the FFN takes in the concatenation of a word representation and the average of the representations of all the words in the sentence and
+produces the updated word representations as output. This is done for all words in each sentence.
+The idea behind this approach is to understand if the average of the word representations is enough information to learn the next representation.
+Moreover, the advantage of this approach is that it is not dependent on the sentence length.
 
-Some short translations from my German to English IWSLT model: <br/><br/>
-Input: `Ich bin ein guter Mensch, denke ich.` ("gold": I am a good person I think) <br/>
-Output: `['<s>', 'I', 'think', 'I', "'m", 'a', 'good', 'person', '.', '</s>']` <br/>
-or in human-readable format: `I think I'm a good person.`
+Similarly to the full sentence approach, the average approach tries to replace the attention with three level of abstraction:
+- The entire encoder layer (referenced as `ELR`).
+- The MHA only (referenced as `ALR`).
+- The MHA with the residual connection (referenced as `ALRR`).
 
-Which is actually pretty good! Maybe even better IMO than Google Translate's "gold" translation.
+Moreover, it was tested whether the whole encoder could be replaced by a single network transforming words using the sentence average as explained above.
+This means that no intermediate layer activations are taken into consideration and the whole structure of the encoder was ignored.
 
----
+If you have access to a cluster with slurm running, there are some convenience scripts in the `submission_scripts` folder.
 
-There are of course failure cases like this: <br/><br/>
-Input: `Hey Alter, wie geht es dir?` (How is it going dude?) <br/>
-Output: `['<s>', 'Hey', ',', 'age', 'how', 'are', 'you', '?', '</s>']` <br/>
-or in human-readable format: `Hey, age, how are you?` <br/>
+### Architecture exploration
 
-Which is actually also not completely bad! Because:
-* First of all the model was trained on IWSLT (TED like conversations)
-* "Alter" is a colloquial expression for old buddy/dude/mate but it's literal meaning is indeed age.
+The optuna package was used to perform a randomized grid search with a manually defined search space to find a good architecture that
+could substitute the attention blocks for all three approaches of layer replacement (`ALR`, `ALRR`, `ELR`) as well
+as for the replacement of the whole encoder.
+The best performing architectures are used in the following steps to train FFN that simulate the substituted blocks.
 
-Similarly for the English to German model.
+To run the randomized grid search for the layer replacement, run:
+`python3 scripts/averaging/find_single_layer_arch.py --[ELR|ALR|ALRR] --input <index-input> --output <index-output>`.
 
-## Setup
+In the command index-input and index-output are the indexes identifying the input and output layer considered for the search.
 
-So we talked about what transformers are, and what they can do for you (among other things). <br/>
-Let's get this thing running! Follow the next steps:
+In practice, we set index-input = index-output = 0 and use for all layers the architecture that performed best in layer 0.
+We found in our experiments that the first layer is the hardest to learn and this approach works well in practice.
 
-1. `git clone https://github.com/gordicaleksa/pytorch-original-transformer`
-2. Open Anaconda console and navigate into project directory `cd path_to_repo`
-3. Run `conda env create` from project directory (this will create a brand new conda environment).
-4. Run `activate pytorch-transformer` (for running scripts from your console or set the interpreter in your IDE)
 
-That's it! It should work out-of-the-box executing environment.yml file which deals with dependencies. <br/>
-It may take a while as I'm automatically downloading SpaCy's statistical models for English and German.
+To start a randomized grid search to replace the whole encoder, run:
+`python3 scripts/averaging/single_sim.py --input 0 --output norm`
 
------
+This will search for a good architecture for a network replacing the whole encoder as it takes the input of encoder layer 0 as input and
+the output of the layer normalization after the last encoder layer as its labels for train.
 
-PyTorch pip package will come bundled with some version of CUDA/cuDNN with it,
-but it is highly recommended that you install a system-wide CUDA beforehand, mostly because of the GPU drivers. 
-I also recommend using Miniconda installer as a way to get conda on your system.
-Follow through points 1 and 2 of [this setup](https://github.com/Petlja/PSIML/blob/master/docs/MachineSetup.md)
-and use the most up-to-date versions of Miniconda and CUDA/cuDNN for your system.
 
-## Usage
-
-#### Option 1: Jupyter Notebook
-
-Just run `jupyter notebook` from you Anaconda console and it will open the session in your default browser. <br/>
-Open `The Annotated Transformer ++.ipynb` and you're ready to play! <br/>
-
----
-
-**Note:** if you get `DLL load failed while importing win32api: The specified module could not be found` <br/>
-Just do `pip uninstall pywin32` and then either `pip install pywin32` or `conda install pywin32` [should fix it](https://github.com/jupyter/notebook/issues/4980)!
-
-#### Option 2: Use your IDE of choice
-
-You just need to link the Python environment you created in the [setup](#setup) section.
+In all cases, the architectures found have to be manually put into the `configs` data-structure for evaluation (in `evaluate.py`)
+or for further processing (in `sim_all_petrain.py` and `sim_all_together.py`).
 
 ### Training
 
-To run the training start the `training_script.py`, there is a couple of settings you will want to specify:
-* `--batch_size` - this is important to set to a maximum value that won't give you CUDA out of memory
-* `--dataset_name` - Pick between `IWSLT` and `WMT14` (WMT14 is not advisable [until I add](#todos) multi-GPU support)
-* `--language_direction` - Pick between `E2G` and `G2E`
+After having put the found configurations in `sim_all_pretrain.py` this script will handle the training of all the layers for the three different approaches.
+The training can be run with the following command
+`python3 scripts/averaging/sim_all_pretrain.py --[ELR|ALR|ALRR]`. 
 
-So an example run (from the console) would look like this: <br/>
-`python training_script.py --batch_size 1500 --dataset_name IWSLT --language_direction G2E`
+After having pretrained the layers for the ELR approach, the obtained layers can be further trained by putting them together and trying to replace the whole encoder,
+that is they are trained with the encoder input and the encoder ouput. The corresponding command is:
+`python3 scripts/averaging/sim_all_together.py`. 
 
-The code is well commented so you can (hopefully) understand how the training itself works. <br/>
+For the approach replacing the whole encoder, no further training is required, as this is already done in `single_sim.py` when searching for a good architecture.
 
-The script will:
-* Dump checkpoint *.pth models into `models/checkpoints/`
-* Dump the final *.pth model into `models/binaries/`
-* Download IWSLT/WMT-14 (the first time you run it and place it under `data/`)
-* Dump [tensorboard data](#evaluating-nmt-models) into `runs/`, just run `tensorboard --logdir=runs` from your Anaconda
-* Periodically write some training metadata to the console
+### Evaluation
 
-*Note: data loading is slow in torch text, and so I've implemented a custom wrapper which adds the caching mechanisms
-and makes things ~30x faster! (it'll be slow the first time you run stuff)*
+For evaluation, the script `evaluate.py` can be used. To run the script use the command:
+`python3 scripts/averaging/evaluate.py --[ELR|ALR|ALRR|single_sim|vanilla]`
 
-### Inference (Translating)
+This will compute the BLEU score for the specified approach (or the original "vanilla" transformer) using the pretrained networks.
+Moreover, it will try to fine tune the pretrained networks in the whole transformer and compute the so obtained BLEU score.
 
-The second part is all about playing with the models and seeing how they translate! <br/>
-To get some translations start the `translation_script.py`, there is a couple of settings you'll want to set:
-* `--source_sentence` - depending on the model you specify this should either be English/German sentence
-* `--model_name` - one of the pretrained model names: `iwslt_e2g`, `iwslt_g2e` or your model(*)
-* `--dataset_name` - keep this in sync with the model, `IWSLT` if the model was trained on IWSLT
-* `--language_direction` - keep in sync, `E2G` if the model was trained to translate from English to German
+Finally, it also trains the whole transformer with the replaced module from scratch (both the transformer as well as the
+new module will have their weights resetted) and again computes the corresponding BLEU score to see whether the pre-training is necessary.
 
-(*) Note: after you train your model it'll get dumped into `models/binaries` see what it's name is and specify it via
-the `--model_name` parameter if you want to play with it for translation purpose. If you specify some of the pretrained
-models they'll **automatically get downloaded** the first time you run the translation script.
+### Random matrices
 
-I'll link IWSLT pretrained model links here as well: [English to German](https://www.dropbox.com/s/a6pfo6t9m2dh1jq/iwslt_e2g.pth?dl=1) and [German to English.](https://www.dropbox.com/s/dgcd4xhwig7ygqd/iwslt_g2e.pth?dl=1)
+In this approach we wanted to test if randmoly initialized matrices are sufficient to achieve a good BLEU score.
+The idea is that these matrices extract features of the input representation and as long as the outputs are correlated, attention may still work.
+The script `scripts/random_embedding/train_random_embedding.py` substitutes all qkv matrices with randomly initialized matrices.
 
-That's it you can also visualize the attention check out [this section.](#visualizing-attention) for more info.
-
-### Evaluating NMT models
-
-I tracked 3 curves while training:
-* training loss (KL divergence, batchmean)
-* validation loss (KL divergence, batchmean)
-* BLEU-4 
-
-[BLEU is an n-gram based metric](https://www.aclweb.org/anthology/P02-1040.pdf) for quantitatively evaluating the quality of machine translation models. <br/>
-I used the BLEU-4 metric provided by the awesome **nltk** Python module.
-
-Current results, models were trained for 20 epochs (DE stands for Deutch i.e. German in German :nerd_face:):
-
-| Model | BLEU score | Dataset |
-| --- | --- | --- |
-| [Baseline transformer (EN-DE)](https://www.dropbox.com/s/a6pfo6t9m2dh1jq/iwslt_e2g.pth?dl=1) | **27.8** | IWSLT val |
-| [Baseline transformer (DE-EN)](https://www.dropbox.com/s/dgcd4xhwig7ygqd/iwslt_g2e.pth?dl=1) | **33.2** | IWSLT val |
-| Baseline transformer (EN-DE) | x | WMT-14 val |
-| Baseline transformer (DE-EN) | x | WMT-14 val |
-
-I got these using greedy decoding so it's a pessimistic estimate, I'll add beam decoding [soon.](#todos)
-
-**Important note:** Initialization matters a lot for the transformer! I initially thought that other implementations
-using Xavier initialization is again one of those arbitrary heuristics and that PyTorch default init will do - I was wrong:
-
-<p align="center">
-<img src="data/readme_pics/bleu_score_xavier_vs_default_pt_init.PNG" width="450"/>
-</p>
-
-You can see here 3 runs, the 2 lower ones used PyTorch default initialization (one used `mean` for KL divergence
-loss and the better one used `batchmean`), whereas the upper one used **Xavier uniform** initialization!
- 
----
-
-Idea: you could potentially also periodically dump translations for a reference batch of source sentences. <br/>
-That would give you some qualitative insight into how the transformer is doing, although I didn't do that. <br/>
-A similar thing is done when you have hard time quantitatively evaluating your model like in [GANs](https://github.com/gordicaleksa/pytorch-gans) and [NST](https://github.com/gordicaleksa/pytorch-nst-feedforward) fields.
-
-### Tracking using Tensorboard
-
-The above plot is a snippet from my Azure ML run but when I run stuff locally I use Tensorboard.
-
-Just run `tensorboard --logdir=runs` from your Anaconda console and you can track your metrics during the training.
-
-### Visualizing attention
-
-You can use the `translation_script.py` and set the `--visualize_attention` to True to additionally understand what your
-model was "paying attention to" in the source and target sentences.
-
-Here are the attentions I get for the input sentence `Ich bin ein guter Mensch, denke ich.`
-
-These belong to layer 6 of the encoder. You can see all of the 8 multi-head attention heads.
-
-<p align="center">
-<img src="data/readme_pics/attention_enc_self.PNG" width="850"/>
-</p>
-
-And this one belongs to decoder layer 6 of the self-attention decoder MHA (multi-head attention) module. <br/>
-You can notice an interesting **triangular pattern** which comes from the fact that target tokens can't look ahead!
-
-<p align="center">
-<img src="data/readme_pics/attention_dec_self.PNG" width="850"/>
-</p>
-
-The 3rd type of MHA module is the source attending one and it looks similar to the plot you saw for the encoder. <br/>
-Feel free to play with it at your own pace!
-
-*Note: there are obviously some bias problems with this model but I won't get into that analysis here*
-
-## Hardware requirements
-
-You really need a decent hardware if you wish to train the transformer on the **WMT-14** dataset.
-
-The authors took:
-* **12h on 8 P100 GPUs** to train the baseline model and **3.5 days** to train the big one.
-
-If my calculations are right that amounts to ~19 epochs (100k steps, each step had ~25000 tokens and WMT-14 has ~130M src/trg tokens)
-for the baseline and 3x that for the big one (300k steps).
-
-On the other hand it's much more feasible to train the model on the **IWSLT** dataset. It took me:
-* 13.2 min/epoch (1500 token batch) on my RTX 2080 machine (8 GBs of VRAM)
-* ~34 min/epoch (1500 token batch) on Azure ML's K80s (24 GBs of VRAM)
-
-I could have pushed K80s to 3500+ tokens/batch but had some CUDA out of memory problems.
-
-### Todos:
-
-Finally there are a couple more todos which I'll hopefully add really soon:
-* Multi-GPU/multi-node training support (so that you can train a model on WMT-14 for 19 epochs)
-* Beam decoding (turns out it's not that easy to implement this one!)
-* BPE and shared source-target vocab (I'm using SpaCy now)
-
-The repo already has everything it needs, these are just the bonus points. I've tested everything
-from environment setup, to automatic model download, etc.
-
-## Video learning material
-
-If you're having difficulties understanding the code I did an in-depth overview of the paper [in this video:](https://www.youtube.com/watch?v=cbYxHkgkSVs)
-
-<p align="left">
-<a href="https://www.youtube.com/watch?v=cbYxHkgkSVs" target="_blank"><img src="https://img.youtube.com/vi/cbYxHkgkSVs/0.jpg" 
-alt="A deep dive into the attention is all you need paper" width="480" height="360" border="10" /></a>
-</p>
-
-I have some more videos which could further help you understand transformers:
-* [My approach to understanding NLP/transformers](https://www.youtube.com/watch?v=bvBK-coXf9I)
-* [Another overview of the paper (a bit higher level)](https://www.youtube.com/watch?v=n9sLZPLOxG8)
-* [A case study of how this project was developed](https://www.youtube.com/watch?v=px4rtkWHFvM)
-
-## Acknowledgements
-
-I found these resources useful (while developing this one):
-
-* [The Annotated Transformer](http://nlp.seas.harvard.edu/2018/04/03/attention.html)
-* [PyTorch official implementation](https://github.com/pytorch/pytorch/blob/187e23397c075ec2f6e89ea75d24371e3fbf9efa/torch/nn/modules/transformer.py)
-
-I found some inspiration for the model design in the The Annotated Transformer but I found it hard to understand, and
-it had some bugs. It was mainly written with researchers in mind. Hopefully this repo opens up
-the understanding of transformers to the common folk as well! :nerd_face:
-
-## Citation
-
-If you find this code useful, please cite the following:
-
-```
-@misc{Gordić2020PyTorchOriginalTransformer,
-  author = {Gordić, Aleksa},
-  title = {pytorch-original-transformer},
-  year = {2020},
-  publisher = {GitHub},
-  journal = {GitHub repository},
-  howpublished = {\url{https://github.com/gordicaleksa/pytorch-original-transformer}},
-}
-```
-
-## Connect with me
-
-If you'd love to have some more AI-related content in your life :nerd_face:, consider:
-* Subscribing to my YouTube channel [The AI Epiphany](https://www.youtube.com/c/TheAiEpiphany) :bell:
-* Follow me on [LinkedIn](https://www.linkedin.com/in/aleksagordic/) and [Twitter](https://twitter.com/gordic_aleksa) :bulb:
-* Follow me on [Medium](https://gordicaleksa.medium.com/) :books: :heart:
-
-## Licence
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/gordicaleksa/pytorch-original-transformer/blob/master/LICENCE)
+All the matrices weights are frozen, while the rest of the transformer is trained. To run this experiment execute:
+1. `python3 scripts/random_embedding/train_random_embedding.py`: this will replace all qkv nets with the same randomly initialized matrix.
+2. `python3 scripts/random_embedding/train_random_embedding.py --independent_init`: this will initialize all three matrices independently.
+The BLEU score is reported at the end of every epoch.
