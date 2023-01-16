@@ -85,11 +85,6 @@ def get_train_val_loop(baseline_transformer, custom_lr_optimizer, kl_div_loss, l
 
     return train_val_loop
 
-def init_normal(m):
-    if type(m) == nn.Linear:
-        nn.init.uniform_(m.weight)
-
-
 def train_transformer(training_config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
 
@@ -125,21 +120,21 @@ def train_transformer(training_config):
     # exclude the in-projection weights from training
     # encoder
     for linear in [l.multi_headed_attention.qkv_nets for l in baseline_transformer.encoder.encoder_layers]:
-        for i,l in enumerate(linear):
+        for l in linear:
             # use the modules apply function to recursively apply the initialization
             if training_config["independent_init"]:
-                l.apply(init_normal)
+                l.reset_parameters()
             l.requires_grad_(False)
     # decoder has two attentions
     for linear in [l.src_multi_headed_attention.qkv_nets for l in baseline_transformer.decoder.decoder_layers]:
-        for i,l in enumerate(linear):
+        for l in linear:
             if training_config["independent_init"]:
-                l.apply(init_normal)
+                l.reset_parameters()
             l.requires_grad_(False)
     for linear in [l.trg_multi_headed_attention.qkv_nets for l in baseline_transformer.decoder.decoder_layers]:
-        for i,l in enumerate(linear):
+        for l in linear:
             if training_config["independent_init"]:
-                l.apply(init_normal)
+                l.reset_parameters()
             l.requires_grad_(False)
     custom_lr_optimizer = CustomLRAdamOptimizer(
             Adam(filter(lambda p: p.requires_grad, baseline_transformer.parameters()), betas=(0.9, 0.98), eps=1e-9),

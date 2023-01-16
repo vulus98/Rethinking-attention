@@ -106,7 +106,6 @@ class Encoder(nn.Module):
         # Just update the naming so as to reflect the semantics of what this var will become (the initial encoder layer
         # has embedding vectors as input but later layers have richer token representations)
         src_representations_batch = src_embeddings_batch
-        print(src_embeddings_batch.shape)
         # Forward pass through the encoder stack
         for encoder_layer in self.encoder_layers:
             # src_mask's role is to mask/ignore padded token representations in the multi-headed self-attention module
