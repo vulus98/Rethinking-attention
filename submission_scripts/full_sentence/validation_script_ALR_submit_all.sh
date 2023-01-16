@@ -17,11 +17,11 @@ if [ $2 == "--decoder" ]; then
 fi
 for i in {0..5}; do
     echo "Substiting layer $i..."
-    echo sbatch  --output=../sbatch_log/ALR/$1/evaluation_outputs/%j.out  submission_scripts/validation.sh --substitute_model_path$suffix $SCRATCH/models/checkpoints/ALR/$1/  --epoch$suffix $epoch --substitute_type$suffix ALR --substitute_class$suffix $1 --layers$suffix $i 
+    sbatch  --output=../sbatch_log/ALR/$1/evaluation_outputs/%j.out  submission_scripts/validation.sh --substitute_model_path$suffix $SCRATCH/models/checkpoints/ALR/$1/  --epoch$suffix $epoch --substitute_type$suffix ALR --substitute_class$suffix $1 --layers$suffix $i 
 done
 
 echo "Substituting all layers"
-echo sbatch  --output=../sbatch_log/ALR/$1/evaluation_outputs/%j.out submission_scripts/validation.sh --substitute_model_path$suffix $SCRATCH/models/checkpoints/ALR/$1/  --epoch$suffix $epoch --substitute_type$suffix ALR --substitute_class$suffix $1 
+sbatch  --output=../sbatch_log/ALR/$1/evaluation_outputs/%j.out submission_scripts/validation.sh --substitute_model_path$suffix $SCRATCH/models/checkpoints/ALR/$1/  --epoch$suffix $epoch --substitute_type$suffix ALR --substitute_class$suffix $1 
 
 echo "Substituting all layers with untrained FF..."
-echo sbatch  --output=../sbatch_log/ALR/$1/evaluation_outputs/%j.out  submission_scripts/validation.sh --substitute_model_path$suffix $SCRATCH/models/checkpoints/ALR/$1/  --epoch$suffix $epoch --substitute_type$suffix ALR --substitute_class$suffix $1 --untrained$suffix
+sbatch  --output=../sbatch_log/ALR/$1/evaluation_outputs/%j.out  submission_scripts/validation.sh --substitute_model_path$suffix $SCRATCH/models/checkpoints/ALR/$1/  --epoch$suffix $epoch --substitute_type$suffix ALR --substitute_class$suffix $1 --untrained$suffix
