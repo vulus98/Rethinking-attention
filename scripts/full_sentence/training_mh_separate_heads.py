@@ -203,7 +203,7 @@ if __name__ == "__main__":
     
     # Params to set when running the script
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=5)
-    parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/mha_only.py", required=True)
+    parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/ALR.py", required=True)
     
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary

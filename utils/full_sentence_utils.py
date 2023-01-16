@@ -381,8 +381,8 @@ class AttentionSubstituteDecoder(nn.Module):
         outputs, padding =  torch.split(outputs,[S, MAX_LEN - S] , dim = 2)   
         return outputs 
 
-def substitute_mha_only_encoder(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained, multi_device):
-    import models.definitions.mha_only_FF as m
+def substitute_ALR_encoder(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained, multi_device):
+    import models.definitions.ALR_FF as m
     FF_net = getattr(m, substitute_class)
     print(f"Substituing attention with {FF_net}")
     mha_to_mha2(baseline_transformer)
@@ -393,7 +393,7 @@ def substitute_mha_only_encoder(baseline_transformer, substitute_class, substitu
         if not multi_device:
             ff_net.to(device)
         if not untrained:
-            model_path=os.path.join(substitute_model_path ,f'layer{l}', MHA_ONLY_CHECKPOINT_FORMAT.format(epoch, l))
+            model_path=os.path.join(substitute_model_path ,f'layer{l}', ALR_CHECKPOINT_FORMAT.format(epoch, l))
             print(f"Loading weights from {model_path}")
             model_state = torch.load(model_path)
             ff_net.load_state_dict(model_state)
@@ -402,8 +402,8 @@ def substitute_mha_only_encoder(baseline_transformer, substitute_class, substitu
         ff_net.eval()
         replace_mha(baseline_transformer, ff_net, l, device)
 
-def substitute_mha_only_decoder(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained, multi_device):
-    import models.definitions.mha_only_FF as m
+def substitute_ALR_decoder(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained, multi_device):
+    import models.definitions.ALR_FF as m
     FF_net = getattr(m, substitute_class)
     print(f"Substituing attention with {FF_net}")
     mha_to_mha2(baseline_transformer, attention_type="decoder_self")
@@ -414,7 +414,7 @@ def substitute_mha_only_decoder(baseline_transformer, substitute_class, substitu
         if not multi_device:
             ff_net.to(device)
         if not untrained:
-            model_path=os.path.join(substitute_model_path, f'layer{l}', MHA_ONLY_CHECKPOINT_FORMAT.format(epoch, l))
+            model_path=os.path.join(substitute_model_path, f'layer{l}', ALR_CHECKPOINT_FORMAT.format(epoch, l))
             print(f"Loading weights from {model_path}")
             model_state = torch.load(model_path)
             ff_net.load_state_dict(model_state)
@@ -456,7 +456,7 @@ def substitute_sublayer(baseline_transformer, substitute_class, substitute_model
     for l in layers:
         ff_net = FF_net().to(device)
         if not untrained:
-            ckpt_model_name = MHA_ONLY_CHECKPOINT_FORMAT.format(epoch, l)
+            ckpt_model_name = ALR_CHECKPOINT_FORMAT.format(epoch, l)
             model_path=os.path.join(substitute_model_path, 'layer{0}'.format(l), ckpt_model_name)
             model_state = torch.load(model_path)
             ff_net.load_state_dict(model_state)
@@ -467,12 +467,12 @@ def substitute_sublayer(baseline_transformer, substitute_class, substitute_model
     
 def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch,t, untrained=False,  multi_device = False, decoder = False):
     
-    if t == "mha_only":
+    if t == "ALR":
         print("Substitute mha only")
         if decoder == False:
-            substitute_mha_only_encoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
+            substitute_ALR_encoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
         else:
-            substitute_mha_only_decoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
+            substitute_ALR_decoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
     elif t == "ALRR":
         print("Substitute ELR layer")
         substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
@@ -480,7 +480,7 @@ def substitute_attention(baseline_transformer, substitute_class, substitute_mode
         print("Substitute separate mha layer")
         substitute_separate_mha(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
     else:
-        raise ValueError("Attention type in ['mha_only', 'ALRR', 'mha_separate_heads']")
+        raise ValueError("Attention type in ['ALR', 'ALRR', 'mha_separate_heads']")
 def pad_shape(batch, masks = False):
     shape = batch.shape
     if masks:

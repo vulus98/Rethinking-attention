@@ -16,7 +16,7 @@ import sys
 path_root = Path(__file__).parents[2]
 sys.path.append(str(path_root))
 
-from utils.constants import MHA_ONLY_CHECKPOINT_FORMAT, SCRATCH, MAX_LEN,CHECKPOINTS_SCRATCH
+from utils.constants import ALR_CHECKPOINT_FORMAT, SCRATCH, MAX_LEN,CHECKPOINTS_SCRATCH
 import models.definitions.ALRR_FF as nets
 
 DATA_PATH=os.path.join(SCRATCH, "layer_outputs")
@@ -59,7 +59,7 @@ def training_replacement_FF(params):
             with torch.no_grad():
                 epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
         if(epoch%20==0):
-            ckpt_model_name = MHA_ONLY_CHECKPOINT_FORMAT.format(epoch+1, params['num_of_curr_trained_layer'])
+            ckpt_model_name = ALR_CHECKPOINT_FORMAT.format(epoch+1, params['num_of_curr_trained_layer'])
             torch.save(model.state_dict(), os.path.join(training_config["checkpoints_folder"],ckpt_model_name))
         print("Loss per embedding element: ",epoch_loss/num_embeddings)
 
@@ -170,7 +170,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
-    parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/mha_only.py", required=True)
+    parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/ALR.py", required=True)
     
     
     args = parser.parse_args()

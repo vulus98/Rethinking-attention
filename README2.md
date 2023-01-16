@@ -70,12 +70,12 @@ prevent them from influencing the model's inference.
 
 We tried substituting attention with three layer of abstraction: 
 - *ALRR*: replaces the MHA and the residual connection
-- *mha_only*: replaces only the MHA
-- *separate_heads*: replaces the same part as *mha_only*, but one FFN is trained for each head.
+- *ALR*: replaces only the MHA
+- *separate_heads*: replaces the same part as *ALR*, but one FFN is trained for each head.
 
 The architecture used for each approach are listed in 
 - `models/definitions/ALRR_FF.py`
-- `models/definitions/mha_only_FF.py`
+- `models/definitions/ALR_FF.py`
 - `models/definitions/mha_FF.py`.
 
 Each approach uses a different training script. Each training script contains a data loader responsible for loading the data extracted at the previous step and
@@ -91,20 +91,20 @@ For example to train the network *FFNetwork_shrink* to substitute layer zero run
 
 ### Training `separate_heads`
 To train one of the architectures defined in `models/definitions/mha_FF.py` for a specific layer run:
-`python3 scripts/full_sentence/training_mha_only_FF.py --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
+`python3 scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
 For example to train the network *FFNetwork_shrink* to substitute layer zero with 8 heads, one for each head in the MHA of layer zero, run:
 `python3 scripts/full_sentence/training_mh_separate_heads.py --num_of_curr_trained_layer 0 --substitute_class FFNetwork_shrink`.
 
-### Training `mha_only`
-To train one of the architectures defined in `models/definitions/mha_only_FF.py` for a specific layer run:
-`python3 scripts/full_sentence/training_mha_only_FF.py --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
+### Training `ALR`
+To train one of the architectures defined in `models/definitions/ALR_FF.py` for a specific layer run:
+`python3 scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
 For example to train the network *FFNetwork_shrink* to substitute layer zero with 8 heads, one for each head in the MHA of layer zero, run:
-`python3 scripts/full_sentence/training_mha_only_FF.py --num_of_curr_trained_layer 0 --substitute_class FFNetwork_shrink`.
+`python3 scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer 0 --substitute_class FFNetwork_shrink`.
 This approach was also used to train self-attention in the decoder. The architecture used in the decoder are denoted by the word *decoder* in the class name.
 To train one of this architecture to substitute self-attention in the encoder layer run
-`python3 .scripts/full_sentence/training_mha_only_FF.py --num_of_curr_trained_layer [0-5] --substitute_class FFNetwork_decoder_shrink --decoder`
+`python3 .scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer [0-5] --substitute_class FFNetwork_decoder_shrink --decoder`
 
-In case you are running this code on a cluster which uses slurm, the script `submission_scripts/training_mha_only_FF_submit_all.sh` can be used to automatically
+In case you are running this code on a cluster which uses slurm, the script `submission_scripts/training_ALR_FF_submit_all.sh` can be used to automatically
 submit the training of a network for each layer (0-5).
 If you use that script, please make sure that the path specified for the output of the program exists.
 The script currently assumes a directory `../sbatch_log` which will collect all the outputs.
@@ -114,19 +114,19 @@ The script currently assumes a directory `../sbatch_log` which will collect all 
 All the networks trained in the previous step can be evaluated using `scripts/full_sentence/validation_script.py`.
 The validation is performed substituting the trained FFN in the pretrained transformer and computing the BLUE score on the validation data.
 The script receives as inputs the following parameters: 
-- `substitute_type`: type of approach to use for substitution. Must be in [`ALRR`, `mha_only`, `mha_separate_heads`, `none`]. If `none`, no substitution takes place;
+- `substitute_type`: type of approach to use for substitution. Must be in [`ALRR`, `ALR`, `mha_separate_heads`, `none`]. If `none`, no substitution takes place;
 - `substitute_class`: class that substitutes attention e.g. *FFNetwork_shrink*;
 - `layers`: list of layers to substitute. If layer is not specified, all layers are substituted;
 - `epoch`: epoch checkpoint to use;
 - `untrained`: bool. If set, the substitute FF is not loaded with the trained weights and it is left untrained. This can be set to test the performance of a randomly substituted FFN.
 
-The last four attributes appended with `_d` can be used to substitute self-attention in the decoder. Currently, only the `mha_only` supports substitution
+The last four attributes appended with `_d` can be used to substitute self-attention in the decoder. Currently, only the `ALR` supports substitution
 in the decoder layer.
 To run the evaluation script the following command can be used
 `python3 scripts/full_sentence/validation_script.py --substitute_type <subs_type> --substitute_class <class_name> --layers [0-5]* --epoch <epoch number>`
-As an example if you want to evaluate the performance of *FFNetwork_shrink* in the `mha_only` approach, substituting all layers in the encoder with
+As an example if you want to evaluate the performance of *FFNetwork_shrink* in the `ALR` approach, substituting all layers in the encoder with
 the checkpoint at epoch 21 the following command can be used:
-`python3 scripts/full_sentence/validation_script.py --substitute_type mha_only --substitute_class FFNetwork_shrink --epoch 21`
+`python3 scripts/full_sentence/validation_script.py --substitute_type ALR --substitute_class FFNetwork_shrink --epoch 21`
 
 ## Average approach
 

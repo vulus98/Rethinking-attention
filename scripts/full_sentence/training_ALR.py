@@ -16,8 +16,8 @@ from pathlib import Path
 import sys
 path_root = Path(__file__).parents[2]
 sys.path.append(str(path_root))
-import models.definitions.mha_only_FF as FF_models
-from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_SCRATCH, MHA_ONLY_CHECKPOINT_FORMAT
+import models.definitions.ALR_FF as FF_models
+from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_SCRATCH, ALR_CHECKPOINT_FORMAT
 
 DATA_PATH=os.path.join(SCRATCH, "mha_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
@@ -84,7 +84,7 @@ def training_replacement_FF(params):
                 epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
                 mapes.append(MAPE(label, pred))
         if epoch % 20 == 0:
-            ckpt_model_name = MHA_ONLY_CHECKPOINT_FORMAT.format(epoch+1, params['num_of_curr_trained_layer'])
+            ckpt_model_name = ALR_CHECKPOINT_FORMAT.format(epoch+1, params['num_of_curr_trained_layer'])
             torch.save(model.state_dict(), os.path.join(params["checkpoints_folder"], ckpt_model_name))
         print(f"Loss per embedding element:{epoch_loss/num_embeddings}, MAPE: {MAPE(label, pred)}, time: {time.time() - start}")
 
@@ -303,7 +303,7 @@ if __name__ == "__main__":
     
     # Params to set
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
-    parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/mha_only.py", required=True)
+    parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/ALR.py", required=True)
     parser.add_argument("--decoder", action = "store_true")
     
     args = parser.parse_args()
@@ -312,7 +312,7 @@ if __name__ == "__main__":
     for arg in vars(args):
         training_config[arg] = getattr(args, arg)
     print("Training arguments parsed")
-    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"mha_only", training_config["substitute_class"], f"layer{training_config['num_of_curr_trained_layer']}")
+    training_config["checkpoints_folder"] = os.path.join(CHECKPOINTS_SCRATCH,"ALR", training_config["substitute_class"], f"layer{training_config['num_of_curr_trained_layer']}")
     os.makedirs(training_config["checkpoints_folder"], exist_ok = True)
     print(training_config["checkpoints_folder"])
     print(training_config)
