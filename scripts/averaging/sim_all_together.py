@@ -21,29 +21,29 @@ from utils.constants import *
 from utils.simulator import *
 
 configs = {
-        "whole": {"batch_size": 512, "nr_units": [6, 4, 7], "nr_layers": 4},
-        "just_attention": {"batch_size": 512, "nr_units": [7, 5, 7], "nr_layers": 4},
-        "with_residual": {"batch_size": 2048, "nr_units": [5, 7, 6, 5, 5], "nr_layers": 6}
+        "ELR": {"batch_size": 512, "nr_units": [6, 4, 7], "nr_layers": 4},
+        "ALR": {"batch_size": 512, "nr_units": [7, 5, 7], "nr_layers": 4},
+        "ALRR": {"batch_size": 2048, "nr_units": [5, 7, 6, 5, 5], "nr_layers": 6}
         }
 
 def train():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     sims = []
     for i in range(6):
-        nr_layers = configs["whole"]["nr_layers"]
-        nr_units = configs["whole"]["nr_units"]
-        batch_size = configs["whole"]["batch_size"]
+        nr_layers = configs["ELR"]["nr_layers"]
+        nr_units = configs["ELR"]["nr_units"]
+        batch_size = configs["ELR"]["batch_size"]
         a = AttentionSimulator(nr_layers, nr_units).to(device)
         # load weights
-        ckpt_model_name = get_checkpoint_name(a.name, batch_size, i, "norm" if i == 5 else i, 25, "whole")
+        ckpt_model_name = get_checkpoint_name(a.name, batch_size, i, "norm" if i == 5 else i, 25, "ELR")
         model_state_dict, _ = torch.load(os.path.join(CHECKPOINTS_PATH, ckpt_model_name), map_location=device)
         a.load_state_dict(model_state_dict)
         sims.append(a)
     model = MultipleSimulator(sims).to(device)
 
-    train_data_set = UnchangedDataset(0, "norm", "train", device, "whole")
-    val_data_set = UnchangedDataset(0, "norm", "val", device, "whole")
-    test_data_set = UnchangedDataset(0, "norm", "test", device, "whole")
+    train_data_set = UnchangedDataset(0, "norm", "train", device, "ELR")
+    val_data_set = UnchangedDataset(0, "norm", "val", device, "ELR")
+    test_data_set = UnchangedDataset(0, "norm", "test", device, "ELR")
 
     lr = 0.0003
 

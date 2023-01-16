@@ -53,8 +53,8 @@ To train our FFNs we first extract the intermediate values that are given as inp
 
 The first script extracts inputs and outputs of
 - each encoder layer (identified by *whole_layer* in the file name),
-- each multi-headed attention (MHA) module (identified by *just_attention* in the file name),
-- each "sublayer zero" which consists of the MHA, the layer normalization and the residual connection (identified by *with_residual* in the file name).
+- each multi-headed attention (MHA) module (identified by *ALR* in the file name),
+- each "sublayer zero" which consists of the MHA, the layer normalization and the residual connection (identified by *ALRR* in the file name).
 
 The second script extracts inputs and outputs of 
 - each MHA excluded the linear layer which mixes the values extracted by each head. This is to enable learning the output of each head separately as in the 'separate head' approach.
@@ -133,9 +133,9 @@ the checkpoint at epoch 21 the following command can be used:
 In this approach, the FFN takes in the concatenation of a word representation and the average of the representation of all the words in the sentence and produces the updated word representations as output. This is done for all words in each sentence. The idea behind this approach is to understand if the average of the word representation is enough information to learn the next representation. Moreover, the advantage of this approach is that it is not dependent on the sentence length.
 
 Similarly to the full sentence approach, the average approach tries to replace the attention with three level of abstraction:
-- The entire encoder layer (referenced as `whole`).
-- The MHA only (referenced as `just_attention`).
-- The MHA with the residual connection (referenced as `with_residual`).
+- The entire encoder layer (referenced as `ELR`).
+- The MHA only (referenced as `ALR`).
+- The MHA with the residual connection (referenced as `ALRR`).
 
 Moreover, it was tested whether the whole encoder could be replaced by a single network transforming words using the sentence average as explained above.
 This means that no intermediate layer activations are taken into consideration and the whole structure of the encoder was ignored.
@@ -145,12 +145,12 @@ If you have access to a cluster with slurm running, there are some convenience s
 ### Architectures exploration
 
 The optuna package was used to perform a randomized grid search with a manually defined search spaceto find a good architecture that
-could substitute the attention blocks for all three approaches of layer replacement (`just_attention`, `with_residual`, `whole`) as well
+could substitute the attention blocks for all three approaches of layer replacement (`ALR`, `ALRR`, `ELR`) as well
 as for the replacement of the whole encoder.
 The best performing architectures are used in the following steps to train FFN that simulate the substituted blocks.
 
 To run the randomized grid search for the layer replacement, run:
-`python3 scripts/averaging/find_single_layer_arch.py --[whole|just_attention|with_residual] --input <index-input> --output <index-output>`.
+`python3 scripts/averaging/find_single_layer_arch.py --[ELR|ALR|ALRR] --input <index-input> --output <index-output>`.
 
 In the command index-input and index-output are the indexes identifying the input and output layer considered for the search.
 
@@ -172,14 +172,14 @@ or for further processing (in `sim_all_petrain.py` and `sim_all_together.py`).
 
 After having put the found configurations in `sim_all_pretrain.py` this script will handle the training of all the layers for the three different approaches.
 The training can be run with the following command
-`python3 ./scripts/averaging/sim_all_pretrain.py --[whole|just_attention|with_residual]`. 
+`python3 ./scripts/averaging/sim_all_pretrain.py --[ELR|ALR|ALRR]`. 
 
 For the approach replacing the whole encoder, no further training is required, as this is already done in `single_sim.py` when searching for a good architecture.
 
 ### Evaluation
 
 For evaluation, the script `evaluate.py` can be used. To run the script use the command:
-`python3 ./scripts/averaging/evaluate.py --[whole|just_attention|with_residual|single_sim|vanilla]`
+`python3 ./scripts/averaging/evaluate.py --[ELR|ALR|ALRR|single_sim|vanilla]`
 
 This will compute the BLEU score for the specified approach (or the original "vanilla" transformer) using the pretrained networks.
 Moreover, it will try to fine tune the pretrained networks in the whole transformer and compute the so obtained BLEU score.

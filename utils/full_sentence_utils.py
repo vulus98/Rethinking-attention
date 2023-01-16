@@ -474,7 +474,7 @@ def substitute_attention(baseline_transformer, substitute_class, substitute_mode
         else:
             substitute_mha_only_decoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
     elif t == "mha_full":
-        print("Substitute whole layer")
+        print("Substitute ELR layer")
         substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
     elif t == "mha_separate_heads":
         print("Substitute separate mha layer")

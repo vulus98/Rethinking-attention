@@ -20,9 +20,9 @@ from utils.constants import *
 from utils.simulator import *
 
 configs = {
-        "whole": {"batch_size": 512, "nr_units": [6, 4, 7], "nr_layers": 4},
-        "just_attention": {"batch_size": 512, "nr_units": [7, 5, 7], "nr_layers": 4},
-        "with_residual": {"batch_size": 2048, "nr_units": [5, 7, 6, 5, 5], "nr_layers": 6}
+        "ELR": {"batch_size": 512, "nr_units": [6, 4, 7], "nr_layers": 4},
+        "ALR": {"batch_size": 512, "nr_units": [7, 5, 7], "nr_layers": 4},
+        "ALRR": {"batch_size": 2048, "nr_units": [5, 7, 6, 5, 5], "nr_layers": 6}
         }
 
 def reset_all_weights(model: nn.Module) -> None:
@@ -63,12 +63,12 @@ def get_trained_transformer():
 def replace_encoder(transformer, new_module):
     transformer.encoder = new_module
 
-def replace_encoder_just_attention(transformer, layers):
+def replace_encoder_ALR(transformer, layers):
     restructure_encoder_layers(transformer)
     for i in range(6):
         transformer.encoder.encoder_layers[i].sublayer_zero.layer = layers[i]
 
-def replace_encoder_with_residual(transformer, layers):
+def replace_encoder_ALRR(transformer, layers):
     restructure_encoder_layers(transformer)
     for i in range(6):
         transformer.encoder.encoder_layers[i].sublayer_zero = layers[i]
@@ -82,10 +82,10 @@ def insert_untrained(transformer, module, ext_pref):
     insert(transformer, module, ext_pref)
 
 def insert(transformer, module, ext_pref):
-    if ext_pref == "just_attention":
-        replace_encoder_just_attention(transformer, module)
-    elif ext_pref == "with_residual":
-        replace_encoder_with_residual(transformer, module)
+    if ext_pref == "ALR":
+        replace_encoder_ALR(transformer, module)
+    elif ext_pref == "ALRR":
+        replace_encoder_ALRR(transformer, module)
     elif ext_pref == "encoder":
         replace_encoder(transformer, module)
     else:
@@ -160,10 +160,10 @@ def get_attention_sims(ext_pref):
         batch_size = configs[ext_pref]["batch_size"]
         a = AttentionSimulator(nr_layers, nr_units).to(device)
         # load weights
-        ckpt_model_name = get_checkpoint_name(a.name, batch_size, i, "norm" if i == 5 and ext_pref == "whole" else i, 25, ext_pref)
+        ckpt_model_name = get_checkpoint_name(a.name, batch_size, i, "norm" if i == 5 and ext_pref == "ELR" else i, 25, ext_pref)
         model_state_dict, _ = torch.load(os.path.join(CHECKPOINTS_PATH, ckpt_model_name), map_location=device)
         a.load_state_dict(model_state_dict)
-        if ext_pref != "whole":
+        if ext_pref != "ELR":
             a = SimulatorAdapter(a).to(device)
         sims.append(a)
     return sims
@@ -176,7 +176,7 @@ def single_sim():
     # this was the best configuration found
     a = AttentionSimulator(4, [7, 7, 7]).to(device)
     # load weights
-    ckpt_model_name = get_checkpoint_name(a.name, 1024, 0, "norm", 40, "whole")
+    ckpt_model_name = get_checkpoint_name(a.name, 1024, 0, "norm", 40, "ELR")
     model_state_dict, _ = torch.load(os.path.join(CHECKPOINTS_PATH, ckpt_model_name), map_location=device)
     a.load_state_dict(model_state_dict)
 
@@ -185,8 +185,8 @@ def single_sim():
     insert(t, adapter, "encoder")
     treatment(t, "SINGLESIM")
 
-def whole():
-    sims = get_attention_sims("whole")
+def ELR():
+    sims = get_attention_sims("ELR")
     ms = MultipleSimulator(sims).to(device)
 
     t = get_trained_transformer()
@@ -202,16 +202,16 @@ def whole():
     print(f"MULTIPLESIMULATOR: Evaluating the pretrained fine-tuned (outside of transformer) version.")
     evaluate(t)
 
-def just_attention():
-    layers = get_attention_sims("just_attention")
+def ALR():
+    layers = get_attention_sims("ALR")
     t = get_trained_transformer()
-    insert(t, layers, "just_attention")
+    insert(t, layers, "ALR")
     treatment(t, "JUST ATTENTION")
 
-def with_residual():
-    layers = get_attention_sims("with_residual")
+def ALRR():
+    layers = get_attention_sims("ALRR")
     t = get_trained_transformer()
-    insert(t, layers, "with_residual")
+    insert(t, layers, "ALRR")
     treatment(t, "WITH RESIDUAL")
 
 def run():
@@ -219,12 +219,12 @@ def run():
         vanilla()
     if (config["single_sim"]):
         single_sim()
-    if (config["whole"]):
-        whole()
-    if (config["just_attention"]):
-        just_attention()
-    if (config["with_residual"]):
-        with_residual()
+    if (config["ELR"]):
+        ELR()
+    if (config["ALR"]):
+        ALR()
+    if (config["ALRR"]):
+        ALRR()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -236,9 +236,9 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
     parser.add_argument("--vanilla", action="store_true")
     parser.add_argument("--single_sim", action="store_true")
-    parser.add_argument("--whole", action="store_true")
-    parser.add_argument("--just_attention", action="store_true")
-    parser.add_argument("--with_residual", action="store_true")
+    parser.add_argument("--ELR", action="store_true")
+    parser.add_argument("--ALR", action="store_true")
+    parser.add_argument("--ALRR", action="store_true")
 
     args = parser.parse_args()
 

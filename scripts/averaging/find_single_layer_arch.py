@@ -146,18 +146,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=int, help="index of the input", required=True)
     parser.add_argument("--output", type=int, help="index of the output", required=True)
-    parser.add_argument("--just_attention", action="store_true")
-    parser.add_argument("--with_residual", action="store_true")
-    parser.add_argument("--whole", action="store_true")
+    parser.add_argument("--ALR", action="store_true")
+    parser.add_argument("--ALRR", action="store_true")
+    parser.add_argument("--ELR", action="store_true")
     args = parser.parse_args()
     config = dict()
     for arg in vars(args):
         config[arg] = getattr(args, arg)
-    if (config["just_attention"]):
-        train(args.input, args.output, "just_attention")
-    elif (config["with_residual"]):
-        train(args.input, args.output, "with_residual")
-    elif (config["whole"]):
-        train(args.input, args.output, "whole")
+    if (config["ALR"]):
+        train(args.input, args.output, "ALR")
+    elif (config["ALRR"]):
+        train(args.input, args.output, "ALRR")
+    elif (config["ELR"]):
+        train(args.input, args.output, "ELR")
     else:
-        print("Specify one of the three approaches: just_attention, with_residual, whole")
+        print("Specify one of the three approaches: ALR, ALRR, ELR")

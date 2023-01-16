@@ -25,8 +25,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checkin
 def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", dev = False):
     if t not in ["train", "test", "val"]:
         raise ValueError("ERROR: t must be train, test, or val.")
-    in_path =   os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_with_residual_layer{chosen_layer}_inputs_{t}")
-    out_path =  os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_with_residual_layer{chosen_layer}_outputs_{t}")
+    in_path =   os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_ALRR_layer{chosen_layer}_inputs_{t}")
+    out_path =  os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_ALRR_layer{chosen_layer}_outputs_{t}")
     mask_path = os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_masks_{t}")
     dataset = AttentionDataset(in_path, out_path, mask_path, MAX_LEN)
     if dev:

@@ -77,7 +77,7 @@ def train_model(trial, train_data_set, val_data_set, device):
         if trial.should_prune():
             raise optuna.exceptions.TrialPruned()
     # Save model checkpoint
-    ckpt_model_name = get_checkpoint_name(model.name, batch_size, index_in, index_out, num_epochs, "whole")
+    ckpt_model_name = get_checkpoint_name(model.name, batch_size, index_in, index_out, num_epochs, "ELR")
     torch.save((model.state_dict(), optimizer.state_dict()), os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
     return val_loss
 
@@ -101,9 +101,9 @@ def test_model(model, test_data_set):
 def train(index_in, index_out):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    train_data_set = SingleWordsInterResultsDataset(index_in, index_out, "train", device, "whole")
-    val_data_set = SingleWordsInterResultsDataset(index_in, index_out, "val", device, "whole")
-    test_data_set = SingleWordsInterResultsDataset(index_in, index_out, "test", device, "whole")
+    train_data_set = SingleWordsInterResultsDataset(index_in, index_out, "train", device, "ELR")
+    val_data_set = SingleWordsInterResultsDataset(index_in, index_out, "val", device, "ELR")
+    test_data_set = SingleWordsInterResultsDataset(index_in, index_out, "test", device, "ELR")
 
     trainable = lambda t: train_model(t, train_data_set, val_data_set, device)
 
@@ -126,7 +126,7 @@ def train(index_in, index_out):
 
     model = AttentionSimulator(nr_layers, nr_units).to(device)
 
-    ckpt_model_name = get_checkpoint_name(model.name, batch_size, index_in, index_out, num_epochs, "whole")
+    ckpt_model_name = get_checkpoint_name(model.name, batch_size, index_in, index_out, num_epochs, "ELR")
     model_state, _ = torch.load(os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
 
     model.load_state_dict(model_state)

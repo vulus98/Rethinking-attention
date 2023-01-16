@@ -14,7 +14,7 @@ from utils.constants import *
 class SingleWordsInterResultsDataset(torch.utils.data.Dataset):
     def __init__(self, index_in, index_out, t, device, ext_pref):
         assert(t in ["train", "test", "val"])
-        assert(ext_pref in ["whole", "just_attention", "with_residual"])
+        assert(ext_pref in ["ELR", "ALR", "ALRR"])
         pref = f"128emb_20ep_IWSLT_E2G"
 
         mask_path = os.path.join(LAYER_OUTPUT_PATH, f"{pref}_masks_{t}")
@@ -84,7 +84,7 @@ class SingleWordsInterResultsDataset(torch.utils.data.Dataset):
 class UnchangedDataset(torch.utils.data.Dataset):
     def __init__(self, index_in, index_out, t, device, ext_pref):
         assert(t in ["train", "test", "val"])
-        assert(ext_pref in ["whole", "just_attention", "with_residual"])
+        assert(ext_pref in ["ELR", "ALR", "ALRR"])
         pref = "128emb_20ep_IWSLT_E2G"
 
         mask_path = os.path.join(LAYER_OUTPUT_PATH, f"{pref}_masks_{t}")
@@ -210,7 +210,7 @@ def get_batches(data_set, batch_size):
     return [(i, min(i+batch_size, len(data_set)-1)) for i in range(0, len(data_set), batch_size)]
 
 def get_checkpoint_name(model_name, batch_size, index_in, index_out, epoch, ext_pref):
-    assert(ext_pref in ["whole", "just_attention", "with_residual"])
+    assert(ext_pref in ["ELR", "ALR", "ALRR"])
     inst_name = f"{model_name}_bs{batch_size}_fr{index_in}_to{index_out}_{ext_pref}"
     ckpt_model_name = f"{inst_name}_ckpt_epoch_{epoch}.pth"
     return ckpt_model_name

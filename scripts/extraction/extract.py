@@ -69,13 +69,13 @@ def extract_input_output(training_config):
         print(f"Extracting {suffix}")
         hook_handles = []
         for (i, l) in enumerate(transformer.encoder.encoder_layers):
-            h_whole = l.register_forward_hook(getf(i, "whole", suffix))
-            h_just_attention = l.sublayer_zero.layer.register_forward_hook(getf(i, "just_attention", suffix))
-            h_with_residual = l.sublayer_zero.register_forward_hook(getf(i, "with_residual", suffix))
-            hook_handles.append(h_whole)
-            hook_handles.append(h_just_attention)
-            hook_handles.append(h_with_residual)
-        hook_handles.append(transformer.encoder.norm.register_forward_hook(getf("norm", "whole", suffix)))
+            h_ELR = l.register_forward_hook(getf(i, "ELR", suffix))
+            h_ALR = l.sublayer_zero.layer.register_forward_hook(getf(i, "ALR", suffix))
+            h_ALRR = l.sublayer_zero.register_forward_hook(getf(i, "ALRR", suffix))
+            hook_handles.append(h_ELR)
+            hook_handles.append(h_ALR)
+            hook_handles.append(h_ALRR)
+        hook_handles.append(transformer.encoder.norm.register_forward_hook(getf("norm", "ELR", suffix)))
         mask_filename = f"{LAYER_OUTPUT_PATH}/{prefix}_masks_{suffix}"
 
         for batch_idx, token_ids_batch in enumerate(token_ids_loader):

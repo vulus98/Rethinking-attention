@@ -20,14 +20,14 @@ from utils.simulator import *
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 num_epochs = 25
 configs = {
-        "whole": {"batch_size": 512, "nr_units": [6, 4, 7], "nr_layers": 4},
-        "just_attention": {"batch_size": 512, "nr_units": [7, 5, 7], "nr_layers": 4},
-        "with_residual": {"batch_size": 2048, "nr_units": [5, 7, 6, 5, 5], "nr_layers": 6}
+        "ELR": {"batch_size": 512, "nr_units": [6, 4, 7], "nr_layers": 4},
+        "ALR": {"batch_size": 512, "nr_units": [7, 5, 7], "nr_layers": 4},
+        "ALRR": {"batch_size": 2048, "nr_units": [5, 7, 6, 5, 5], "nr_layers": 6}
         }
 
 def train_model(index, t, config):
     index_in = index
-    index_out = "norm" if index == 5 and t == "whole" else index
+    index_out = "norm" if index == 5 and t == "ELR" else index
 
     # best configuration found
     nr_layers = config["nr_layers"]
@@ -91,22 +91,22 @@ def train_model(index, t, config):
 
 def train():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--whole", action="store_true")
-    parser.add_argument("--just_attention", action="store_true")
-    parser.add_argument("--with_residual", action="store_true")
+    parser.add_argument("--ELR", action="store_true")
+    parser.add_argument("--ALR", action="store_true")
+    parser.add_argument("--ALRR", action="store_true")
     args = parser.parse_args()
     config = dict()
     for arg in vars(args):
         config[arg] = getattr(args, arg)
-    if (config["whole"]):
+    if (config["ELR"]):
         for i in range(6):
-            train_model(i, "whole", configs["whole"])
-    if (config["just_attention"]):
+            train_model(i, "ELR", configs["ELR"])
+    if (config["ALR"]):
         for i in range(6):
-            train_model(i, "just_attention", configs["just_attention"])
-    if (config["with_residual"]):
+            train_model(i, "ALR", configs["ALR"])
+    if (config["ALRR"]):
         for i in range(6):
-            train_model(i, "with_residual", configs["with_residual"])
+            train_model(i, "ALRR", configs["ALRR"])
 
 if __name__ == "__main__":
     train()
