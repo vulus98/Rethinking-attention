@@ -5,4 +5,4 @@
 #SBATCH --time 180
 source $HOME/miniconda3/etc/profile.d/conda.sh
 conda activate pytorch-transformer 
-python -u validation_script.py --model_name transformer_128.pth "$@"
+python -u scripts/full_sentence/validation_script.py "$@"

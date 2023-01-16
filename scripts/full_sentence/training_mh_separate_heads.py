@@ -199,8 +199,10 @@ if __name__ == "__main__":
     parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=41)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_PATH)
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
-    parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=5)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
+    
+    # Params to set when running the script
+    parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=5)
     parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/mha_only.py", required=True)
     
     args = parser.parse_args()

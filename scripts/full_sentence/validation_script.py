@@ -95,24 +95,24 @@ if __name__ == "__main__":
     # Cache files and datasets are downloaded here during training, keep them in sync for speed
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
     parser.add_argument("--batch_size", type=int, help="target number of tokens in a src/trg batch", default=1500)
+    parser.add_argument("--multi_device_d", action = "store_true", help =  "Ignore, useful for bigger models which are not used")
+    parser.add_argument("--multi_device", action = "store_true", help =  "Ignore, useful for bigger models which are not used")
     
     # Params for encoder substitution
-    parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FF_large", default = "shrink")
+    parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FFNetwork_shrink", default = "None")
     parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = None)
-    parser.add_argument("--layers", nargs='+',type = int ,help = "If layer is not specified, all layers are substituted")
+    parser.add_argument("--layers", nargs='+',type = int ,help = "List of layers to substitute. If layer is not specified, all layers are substituted")
     parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.")
-    parser.add_argument("--multi_device", action = "store_true")
     parser.add_argument("--untrained", action = "store_true")
     parser.add_argument("--substitute_type", type = str, help="Type of approach to use for substitution", choices=["mha_full", "mha_only", "mha_separate_heads", "none"], default="none")
     
     # Params for decoder substitution
-    parser.add_argument("--substitute_class_d", type=str, help="class that substitutes attention e.g. FF_large", default="shrink")
-    parser.add_argument("--substitute_model_path_d", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = None)
-    parser.add_argument("--layers_d", nargs='+',type = int ,help = "If layer is not specified, all layers are substituted")
+    parser.add_argument("--substitute_class_d", type=str, help="class that substitutes attention e.g. FFNetwork_shrink", default="None")
+    parser.add_argument("--layers_d", nargs='+',type = int ,help = "List of layers to substitute. If layer is not specified, all layers are substituted")
     parser.add_argument("--epoch_d", type = int, help="Epoch checkpoint to use.")
-    parser.add_argument("--multi_device_d", action = "store_true")
     parser.add_argument("--untrained_d", action = "store_true")
     parser.add_argument("--substitute_type_d", type = str, help="Type of approach to use for substitution", choices=["mha_full", "mha_only", "mha_separate_heads", "none"], default="none")
+    parser.add_argument("--substitute_model_path_d", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = None)
     
     # Decoding related args
     args = parser.parse_args()

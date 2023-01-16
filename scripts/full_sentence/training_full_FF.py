@@ -58,7 +58,7 @@ def training_replacement_FF(params):
             lr_optimizer.step()
             with torch.no_grad():
                 epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
-        if(epoch%60==0):
+        if(epoch%20==0):
             ckpt_model_name = MHA_ONLY_CHECKPOINT_FORMAT.format(epoch+1, params['num_of_curr_trained_layer'])
             torch.save(model.state_dict(), os.path.join(training_config["checkpoints_folder"],ckpt_model_name))
         print("Loss per embedding element: ",epoch_loss/num_embeddings)
