@@ -6,4 +6,4 @@
 #SBATCH --time 600
 source $HOME/miniconda3/etc/profile.d/conda.sh
 conda activate pytorch-transformer 
-python -u scripts/full_sentence/training_mh_separate_heads.py "$@"
+python -u scripts/full_sentence/training_ALSR.py "$@"
