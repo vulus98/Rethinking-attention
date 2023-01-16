@@ -10,10 +10,16 @@ from torch import nn
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 
+# Handle imports from utils
+from pathlib import Path
+import sys
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
+
 import utils.utils as utils
 from utils.constants import *
+from utils.simulator import *
 
-from simulator import *
 configs = {
         "whole": {"batch_size": 512, "nr_units": [6, 4, 7], "nr_layers": 4},
         "just_attention": {"batch_size": 512, "nr_units": [7, 5, 7], "nr_layers": 4},

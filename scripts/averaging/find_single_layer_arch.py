@@ -1,24 +1,23 @@
 import argparse
 import time
-import numpy as np
 import os
-from pickle import UnpicklingError
-from functools import partial
 
 import torch
 from torch import nn
 from torch.optim import Adam
-from torch.utils.data import DataLoader
-
-import utils.utils as utils
-from utils.constants import *
-
 import optuna
 
-from simulator import *
+# Handle imports from utils
+from pathlib import Path
+import sys
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
+
+from utils.constants import *
+from utils.simulator import *
 
 num_epochs = 25
-
+print("20")
 def train_model(trial, train_data_set, val_data_set, ext_pref, device):
 
     nr_layers = trial.suggest_int("nr_layers", 2, 6)
@@ -156,7 +155,9 @@ if __name__ == "__main__":
         config[arg] = getattr(args, arg)
     if (config["just_attention"]):
         train(args.input, args.output, "just_attention")
-    if (config["with_residual"]):
+    elif (config["with_residual"]):
         train(args.input, args.output, "with_residual")
-    if (config["whole"]):
+    elif (config["whole"]):
         train(args.input, args.output, "whole")
+    else:
+        print("Specify one of the three approaches: just_attention, with_residual, whole")

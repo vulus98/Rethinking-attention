@@ -7,10 +7,15 @@ import torch
 from torch import nn
 from torch.optim import Adam
 
-import utils.utils as utils
+# Handle imports from utils
+from pathlib import Path
+import sys
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
+
 from utils.constants import *
 
-from simulator import *
+from utils.simulator import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 num_epochs = 25

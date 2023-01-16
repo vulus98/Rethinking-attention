@@ -1,21 +1,20 @@
+import optuna
 import argparse
 import time
-import numpy as np
 import os
-from pickle import UnpicklingError
-from functools import partial
 
 import torch
 from torch import nn
 from torch.optim import Adam
-from torch.utils.data import DataLoader
 
-import utils.utils as utils
+# Handle imports from utils
+from pathlib import Path
+import sys
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
+
 from utils.constants import *
-
-import optuna
-
-from simulator import *
+from utils.simulator import *
 
 batch_size = 1024
 num_epochs = 40

@@ -5,13 +5,20 @@ import torch
 from torch import nn
 from torch.optim import Adam, SGD
 
+
+# Handle imports from utils
+from pathlib import Path
+import sys
+path_root = Path(__file__).parents[2]
+sys.path.append(str(path_root))
+
 from utils.optimizers_and_distributions import CustomLRAdamOptimizer, LabelSmoothingDistribution
 from models.definitions.transformer_model import Transformer
 from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_src_and_trg_batches, DatasetType, LanguageDirection
 import utils.utils as utils
 from utils.constants import *
+from utils.simulator import *
 
-from simulator import *
 configs = {
         "whole": {"batch_size": 512, "nr_units": [6, 4, 7], "nr_layers": 4},
         "just_attention": {"batch_size": 512, "nr_units": [7, 5, 7], "nr_layers": 4},
@@ -49,7 +56,7 @@ def get_untrained_transformer():
 
 def get_trained_transformer():
     transformer = get_untrained_transformer()
-    checkpoint = torch.load(os.path.join(CHECKPOINTS_PATH, "transformer_ckpt_epoch_20.pth"))
+    checkpoint = torch.load(os.path.join(BINARIES_PATH, "transformer_128.pth"))
     transformer.load_state_dict(checkpoint['state_dict'])
     return transformer
 
@@ -88,7 +95,8 @@ def evaluate(transformer):
     transformer.eval()
 
     with torch.no_grad():
-        utils.calculate_bleu_score(transformer, val_token_ids_loader, trg_field_processor)
+        bleu = utils.calculate_bleu_score(transformer, val_token_ids_loader, trg_field_processor)
+    return bleu
 
 def train(transformer, num_of_epochs, name, get_optimizer = lambda t: CustomLRAdamOptimizer(Adam(t.parameters(), betas=(0.9, 0.98), eps=1e-9), BASELINE_MODEL_DIMENSION, 4000)):
     optimizer = get_optimizer(transformer)
@@ -134,12 +142,18 @@ def fine_tune(transformer, name):
     train(transformer, 10, f"{name}_fine_tune", lambda t: SGD(t.parameters(), lr=0.01, momentum=0.9))
 
 def treatment(t, name):
+    bleu = {}
     print(f"{name}: Evaluating the pretrained version.")
-    evaluate(t)
+    bleu["pretrained"] = evaluate(t)
     print(f"{name}: Fine-tuning the pretrained version.")
     fine_tune(t, name)
+    bleu["fine_tuning"] = evaluate(t)
     print(f"{name}: Training everything from scratch.")
     train_from_scratch(t, 20, name)
+    bleu["from_scratch"] = evaluate(t)
+    for k,v in bleu.items():
+        print(f"BLEU {k}:\t{v}")
+    
 
 def get_attention_sims(ext_pref):
     sims = []
@@ -182,7 +196,7 @@ def multi():
     insert(t, ms, "encoder")
     treatment(t, "MULTIPLESIMULATOR")
     # load fine-tuned weights
-    ckpt_model_name = f"{model.name}_lr0.0003_ckpt_epoch_5.pth"
+    ckpt_model_name = f"{ms.name}_lr0.0003_ckpt_epoch_5.pth"
     model_state_dict, _ = torch.load(os.path.join(CHECKPOINTS_PATH, ckpt_model_name), map_location=device)
     ms.load_state_dict(model_state_dict)
     t = get_trained_transformer()
