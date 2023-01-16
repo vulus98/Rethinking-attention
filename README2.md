@@ -27,6 +27,7 @@ The original README from his repo can be found in the legacy folder.
 In the following, all the commands are assumed to be run from the root of the repository.
 
 ## Code overview
+
 As previously mentioned, the code was developed on top of an existing implementation of the transformer. Our main contribution to this code resides in
 - the folder `scripts` which contains scripts for extracting intermediate data, training different architectures and evaluating them in the transformer.
 - The file `simulator.py` which contains the classes and functions for substituting FFN in the transformer (for the average approach) with three different layers of abstraction: the entire encoder, the MHA and the residual connection and the MHA only.
@@ -35,9 +36,14 @@ As previously mentioned, the code was developed on top of an existing implementa
 The provided code was run on different GPUs all with a minimum of 11GB of memory, but up to 24GB.
 In case your GPU does not have this much memory you should try to reduce the batch size. However, some of the bigger architecture may not work properly.
 
-The description on how to run the code is general for any platform. Since we run the code on a cluster which uses slurm, we left in the submission_scripts folder the wrapper scripts which were used to submit jobs. If you want to use them, please either adjust the path output-path argument or create a folder `../sbatch_log` which will collect all the program outputs.
-The folder submission_scripts is organised as the `scripts` folder. The wrapper script for *example_script.py* for the *exaple_approach* is located at *submission_scripts/example_approach/example_script.sh*.
+The description on how to run the code is general for any platform. Since we run the code on a cluster which uses slurm, we left in the `submission_scripts` folder
+the wrapper scripts which were used to submit jobs. If you want to use them, please either adjust the path output-path argument or create a folder `../sbatch_log`
+which will collect all the program outputs.
+The folder `submission_scripts` is organised as the `scripts` folder.
+The wrapper script for *example_script.py* for the *exaple_approach* is located at *submission_scripts/example_approach/example_script.sh*.
+
 ## Train baseline transformer
+
 Note: since we already provide the pretrained transformer this step can be skipped.
 The weights of a pretrained transformer are saved in the directory `./models/binaries/transformer_128.pth`.
 The following parts of the project will use this transformer to extract intermediate values which will be used to train the FFNs to replace attention blocks.
@@ -87,18 +93,21 @@ and the index of the layer to emulate. The training loop iterates over the train
 The instruction for running the training scripts are listed below. 
 
 ### Training `ALRR`
+
 To train one of the architectures defined in `models/definitions/ALRR.py` for a specific layer run:
 `python3 scripts/full_sentence/training_ALRR.py --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
 For example to train the network *FFNetwork_L* to substitute layer zero run
 `python3 scripts/training_ALRR.py --num_of_curr_trained_layer 0 --substitute_class FFNetwork_L`.
 
 ### Training `ALSR`
+
 To train one of the architectures defined in `models/definitions/ALSR_FF.py` for a specific layer run:
 `python3 scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
 For example to train the network *FFNetwork_L* to substitute layer zero with 8 heads, one for each head in the MHA of layer zero, run:
 `python3 scripts/full_sentence/training_ALSR.py --num_of_curr_trained_layer 0 --substitute_class FFNetwork_L`.
 
 ### Training `ALR`
+
 To train one of the architectures defined in `models/definitions/ALR_FF.py` for a specific layer run:
 `python3 scripts/full_sentence/training_ALR.py --num_of_curr_trained_layer [0-5] --substitute_class <function name>`.
 For example to train the network *FFNetwork_L* to substitute layer zero with 8 heads, one for each head in the MHA of layer zero, run:
@@ -175,22 +184,27 @@ or for further processing (in `sim_all_petrain.py` and `sim_all_together.py`).
 
 After having put the found configurations in `sim_all_pretrain.py` this script will handle the training of all the layers for the three different approaches.
 The training can be run with the following command
-`python3 ./scripts/averaging/sim_all_pretrain.py --[ELR|ALR|ALRR]`. 
+`python3 scripts/averaging/sim_all_pretrain.py --[ELR|ALR|ALRR]`. 
 
 For the approach replacing the whole encoder, no further training is required, as this is already done in `single_sim.py` when searching for a good architecture.
 
 ### Evaluation
 
 For evaluation, the script `evaluate.py` can be used. To run the script use the command:
-`python3 ./scripts/averaging/evaluate.py --[ELR|ALR|ALRR|single_sim|vanilla]`
+`python3 scripts/averaging/evaluate.py --[ELR|ALR|ALRR|single_sim|vanilla]`
 
 This will compute the BLEU score for the specified approach (or the original "vanilla" transformer) using the pretrained networks.
 Moreover, it will try to fine tune the pretrained networks in the whole transformer and compute the so obtained BLEU score.
 
 Finally, it also trains the whole transformer with the replaced module from scratch (both the transformer as well as the
 new module will have their weights resetted) and again computes the corresponding BLEU score to see whether the pre-training is necessary.
+
 ### Random matrices
-In this approach we wanted to test if randmoly initialized matrices are sufficient to achieve a good BLEU score. The idea is that these matrices extract features of the input representation and as long as the outputs are correlated, attention may still work. The script `scripts/random_embedding/train_random_embedding.py` substitute all qkv matrices with randomly initialized matrices. All the matrices weights are blocked, while the rest of the transformer is trained. To run this experiment execute:
+
+In this approach we wanted to test if randmoly initialized matrices are sufficient to achieve a good BLEU score.
+The idea is that these matrices extract features of the input representation and as long as the outputs are correlated, attention may still work.
+The script `scripts/random_embedding/train_random_embedding.py` substitutes all qkv matrices with randomly initialized matrices.
+All the matrices weights are frozen, while the rest of the transformer is trained. To run this experiment execute:
 1. `python3 scripts/random_embedding/train_random_embedding.py`: this will replace all qkv nets with the same randomly initialized matrix.
 2. `python3 scripts/random_embedding/train_random_embedding.py --independent_init`: this will initialize all three matrices independently.
 The BLEU score is reported at the end of every epoch.

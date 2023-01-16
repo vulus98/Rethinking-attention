@@ -6,4 +6,4 @@
 #SBATCH --time=300
 eval "$(conda shell.bash hook)"
 conda activate pytorch-transformer
-python -u scripts/random_embedding/train_random_embedding.py
+python -u scripts/random_embedding/train_random_embedding.py $@

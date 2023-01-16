@@ -138,7 +138,6 @@ class SeparateHeadsDataset(torch.utils.data.Dataset):
             maskf.close()
         # self.input = torch.cat(self.input, dim=0)
         # self.output = torch.cat(self.output, dim=0)
-        print(self.input[0].shape)
         torch.save(self.input, in_cache)
         torch.save(self.output, out_cache)
         if t == "max":
