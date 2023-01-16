@@ -69,15 +69,16 @@ In order to handle input sentences of varying lengths, we have decided to pad al
 prevent them from influencing the model's inference. 
 
 We tried substituting attention with three layer of abstraction: 
-- *ALRR*: replaces the MHA and the residual connection
-- *ALR*: replaces only the MHA
-- *ALSR*: replaces the same part as *ALR*, but one FFN is trained for each head.
+- *Attention Layer Replacement with Residual (ALRR)*: replaces the MHA and the residual connection
+- *Attention Layer Replacement (ALR)*: replaces only the MHA
+- *Attention Layer Separate heads Replacement (ALSR)*: replaces the same part as *ALR*, but one FFN is trained for each head.
 
 The architecture used for each approach are listed in 
 - `models/definitions/ALRR_FF.py`
 - `models/definitions/ALR_FF.py`
 - `models/definitions/ALSR_FF.py`.
-
+For the final experiment we considered 5 architectures ranging from extra small (XS)
+to extra large (XL). The considered range of number of parameters shows the operating range of the FFN. In particular, the XS network reduces the BLEU score of the transformer, while as the number of parameter grows, so does the BLEU up to saturation with the XL network.
 Each approach uses a different training script. Each training script contains a data loader responsible for loading the data extracted at the previous step and
 creating batches of a fixed length *MAX_LEN* (using padding). Each training script receives as input the name of the substitute class (e.g. `FFNetwork_L`)
 and the index of the layer to emulate. The training loop iterates over the training data for a specified maximum number of epochs.
