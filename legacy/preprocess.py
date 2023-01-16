@@ -24,8 +24,6 @@ from utils.decoding_utils import greedy_decoding, get_beam_decoder, DecodingMeth
 from utils.utils import print_model_metadata
 from utils.resource_downloader import download_models
 
-from torch.utils.tensorboard import SummaryWriter
-
 
 from utils.optimizers_and_distributions import CustomLRAdamOptimizer, LabelSmoothingDistribution
 from models.definitions.transformer_model import Transformer
@@ -38,7 +36,6 @@ from utils.constants import *
 num_of_trg_tokens_processed = 0
 bleu_scores = []
 global_train_step, global_val_step = [0, 0]
-writer = SummaryWriter()  # (tensorboard) writer will output to ./runs/ directory by default
 PREPROCESS_DIR_PATH = os.environ["SCRATCH"]
 
 # Simple decorator function so that I don't have to pass these arguments every time I call get_train_val_loop
@@ -46,7 +43,7 @@ def get_eval_loop(baseline_transformer, label_smoothing, pad_token_id, time_star
 
     def eval_loop(token_ids_loader, mask_output_path):
     
-        global num_of_trg_tokens_processed, global_train_step, global_val_step, writer
+        global num_of_trg_tokens_processed, global_train_step, global_val_step
         device = next(baseline_transformer.parameters()).device
         src_mask_accumulator = None
         output_batch_count = 0

@@ -151,9 +151,6 @@ def treatment(t, name):
     print(f"{name}: Training everything from scratch.")
     train_from_scratch(t, 20, name)
     bleu["from_scratch"] = evaluate(t)
-    for k,v in bleu.items():
-        print(f"BLEU {k}:\t{v}")
-    
 
 def get_attention_sims(ext_pref):
     sims = []
@@ -188,7 +185,7 @@ def single_sim():
     insert(t, adapter, "encoder")
     treatment(t, "SINGLESIM")
 
-def multi():
+def whole():
     sims = get_attention_sims("whole")
     ms = MultipleSimulator(sims).to(device)
 
@@ -222,8 +219,8 @@ def run():
         vanilla()
     if (config["single_sim"]):
         single_sim()
-    if (config["multi"]):
-        multi()
+    if (config["whole"]):
+        whole()
     if (config["just_attention"]):
         just_attention()
     if (config["with_residual"]):
@@ -239,7 +236,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
     parser.add_argument("--vanilla", action="store_true")
     parser.add_argument("--single_sim", action="store_true")
-    parser.add_argument("--multi", action="store_true")
+    parser.add_argument("--whole", action="store_true")
     parser.add_argument("--just_attention", action="store_true")
     parser.add_argument("--with_residual", action="store_true")
 

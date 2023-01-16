@@ -13,7 +13,6 @@ import time
 import torch
 from torch import nn
 from torch.optim import Adam
-from tensorboardX import SummaryWriter
 
 # Handle imports from utils
 from pathlib import Path
@@ -32,14 +31,13 @@ from utils.full_sentence_utils import substitute_attention
 num_of_trg_tokens_processed = 0
 bleu_scores = []
 global_train_step, global_val_step = [0, 0]
-writer = SummaryWriter()  # (tensorboard) writer will output to ./runs/ directory by default
 
 
 # Simple decorator function so that I don't have to pass these arguments every time I call get_train_val_loop
 def get_train_val_loop(baseline_transformer, custom_lr_optimizer, kl_div_loss, label_smoothing, pad_token_id, time_start):
 
     def train_val_loop(is_train, token_ids_loader, epoch):
-        global num_of_trg_tokens_processed, global_train_step, global_val_step, writer
+        global num_of_trg_tokens_processed, global_train_step, global_val_step
 
         if is_train:
             baseline_transformer.train()
@@ -78,9 +76,6 @@ def get_train_val_loop(baseline_transformer, custom_lr_optimizer, kl_div_loss, l
                 global_train_step += 1
                 num_of_trg_tokens_processed += num_trg_tokens
 
-                if training_config['enable_tensorboard']:
-                    writer.add_scalar('training_loss', loss.item(), global_train_step)
-
                 if training_config['console_log_freq'] is not None and batch_idx % training_config['console_log_freq'] == 0:
                     print(f'Transformer training: time elapsed= {(time.time() - time_start):.2f} [s] '
                           f'| epoch={epoch + 1} | batch= {batch_idx + 1} '
@@ -94,9 +89,6 @@ def get_train_val_loop(baseline_transformer, custom_lr_optimizer, kl_div_loss, l
                     torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(CHECKPOINTS_PATH, ckpt_model_name))
             else:
                 global_val_step += 1
-
-                if training_config['enable_tensorboard']:
-                    writer.add_scalar('val_loss', loss.item(), global_val_step)
 
     return train_val_loop
 
@@ -199,8 +191,6 @@ def train_transformer(training_config):
             train_val_loop(is_train=False, token_ids_loader=val_token_ids_loader, epoch=epoch)
 
             bleu_score = utils.calculate_bleu_score(baseline_transformer, val_token_ids_loader, trg_field_processor)
-            if training_config['enable_tensorboard']:
-                writer.add_scalar('bleu_score', bleu_score, epoch)
 
     # Save the latest transformer in the binaries directory
     torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(BINARIES_PATH, 'replacement_layer_transformer_FF_shrink_mha'))
@@ -227,7 +217,6 @@ if __name__ == "__main__":
     parser.add_argument("--model_name", type=str, help="transformer model name", default=r'transformer_128.pth')
 
     # Logging/debugging/checkpoint related (helps a lot with experimentation)
-    parser.add_argument("--enable_tensorboard", type=bool, help="enable tensorboard logging", default=True)
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
     parser.add_argument("--checkpoint_freq", type=int, help="checkpoint model saving (epoch) freq", default=1)
     parser.add_argument("--start_point", type=int, help="checkpoint model (epoch) where to resume training from", default=0)

@@ -1,4 +1,0 @@
-fix multi and with_residual failure when training in evaluate.py -> probably it does not work without the layer norm
-  we can either ignore this or we fix it. What is failing is the fine tuning of the transformer with the two mentioned methods, yet to be checked what happens in training
-
-integrate stuff with the one from the others?
