@@ -21,7 +21,7 @@ of the original transformer (:link: [Vaswani et al.](https://arxiv.org/abs/1706.
 2. Run `conda env create` from project directory (this will create a brand new conda environment).
 3. Run `activate pytorch-transformer` (for running scripts from your console or set the interpreter in your IDE)
 4. Run `export SCRATCH=path_to_outputs`, where `path_to_outputs` is the directory where you want the output files to be stored. If you are running this code on the euler cluster, the variable is already defined.
-5. Execute `./scripts/download_iwslt.sh` to download the IWSLT dataset which will be used in this project.
+!!!!! 5. Execute `./scripts/download_iwslt.sh` to download the IWSLT dataset which will be used in this project. !!!! Not anymore -> this dataset got deleted. Run ./scripts/basline/prepare_dataset.py
 
 In the following, all the commands are assumed to be run from the root of the repository.
 
@@ -44,7 +44,7 @@ The wrapper script for *example_script.py* for the *exaple_approach* is located 
 ## Train baseline transformer
 
 Note: since we already provide the pretrained transformer this step can be skipped.
-The weights of a pretrained transformer are saved in the directory `./models/binaries/transformer_128.pth`.
+!!!!The weights of a pretrained transformer are saved in the directory `./models/binaries/transformer_128.pth`. !!!  Not anymore. This model is obsolete (uses IWSLT2016 dataset). Run training once to obtain the new valid baseline model. 
 The following parts of the project will use this transformer to extract intermediate values which will be used to train the FFNs to replace attention blocks.
 If you want to train this transformer yourself
 
@@ -138,80 +138,3 @@ To run the evaluation script the following command can be used
 As an example if you want to evaluate the performance of *FFNetwork_L* in the `ALR` approach, substituting all layers in the encoder with
 the checkpoint at epoch 21 the following command can be used:
 `python3 scripts/full_sentence/validation_script.py --substitute_type ALR --substitute_class FFNetwork_L --epoch 21`
-
-## Average approach
-
-In this approach, the FFN takes in the concatenation of a word representation and the average of the representations of all the words in the sentence and
-produces the updated word representations as output. This is done for all words in each sentence.
-The idea behind this approach is to understand if the average of the word representations is enough information to learn the next representation.
-Moreover, the advantage of this approach is that it is not dependent on the sentence length.
-
-Similarly to the full sentence approach, the average approach tries to replace the attention with three level of abstraction:
-- The entire encoder layer (referenced as `ELR`).
-- The MHA only (referenced as `ALR`).
-- The MHA with the residual connection (referenced as `ALRR`).
-
-Moreover, it was tested whether the whole encoder could be replaced by a single network transforming words using the sentence average as explained above.
-This means that no intermediate layer activations are taken into consideration and the whole structure of the encoder was ignored.
-
-If you have access to a cluster with slurm running, there are some convenience scripts in the `submission_scripts` folder.
-
-### Architecture exploration
-
-The optuna package was used to perform a randomized grid search with a manually defined search space to find a good architecture that
-could substitute the attention blocks for all three approaches of layer replacement (`ALR`, `ALRR`, `ELR`) as well
-as for the replacement of the whole encoder.
-The best performing architectures are used in the following steps to train FFN that simulate the substituted blocks.
-
-To run the randomized grid search for the layer replacement, run:
-`python3 scripts/averaging/find_single_layer_arch.py --[ELR|ALR|ALRR] --input <index-input> --output <index-output>`.
-
-In the command index-input and index-output are the indexes identifying the input and output layer considered for the search.
-
-In practice, we set index-input = index-output = 0 and use for all layers the architecture that performed best in layer 0.
-We found in our experiments that the first layer is the hardest to learn and this approach works well in practice.
-
-
-To start a randomized grid search to replace the whole encoder, run:
-`python3 scripts/averaging/single_sim.py --input 0 --output norm`
-
-This will search for a good architecture for a network replacing the whole encoder as it takes the input of encoder layer 0 as input and
-the output of the layer normalization after the last encoder layer as its labels for train.
-
-
-In all cases, the architectures found have to be manually put into the `configs` data-structure for evaluation (in `evaluate.py`)
-or for further processing (in `sim_all_petrain.py` and `sim_all_together.py`).
-
-### Training
-
-After having put the found configurations in `sim_all_pretrain.py` this script will handle the training of all the layers for the three different approaches.
-The training can be run with the following command
-`python3 scripts/averaging/sim_all_pretrain.py --[ELR|ALR|ALRR]`. 
-
-After having pretrained the layers for the ELR approach, the obtained layers can be further trained by putting them together and trying to replace the whole encoder,
-that is they are trained with the encoder input and the encoder ouput. The corresponding command is:
-`python3 scripts/averaging/sim_all_together.py`. 
-
-For the approach replacing the whole encoder, no further training is required, as this is already done in `single_sim.py` when searching for a good architecture.
-
-### Evaluation
-
-For evaluation, the script `evaluate.py` can be used. To run the script use the command:
-`python3 scripts/averaging/evaluate.py --[ELR|ALR|ALRR|single_sim|vanilla]`
-
-This will compute the BLEU score for the specified approach (or the original "vanilla" transformer) using the pretrained networks.
-Moreover, it will try to fine tune the pretrained networks in the whole transformer and compute the so obtained BLEU score.
-
-Finally, it also trains the whole transformer with the replaced module from scratch (both the transformer as well as the
-new module will have their weights resetted) and again computes the corresponding BLEU score to see whether the pre-training is necessary.
-
-### Random matrices
-
-In this approach we wanted to test if randmoly initialized matrices are sufficient to achieve a good BLEU score.
-The idea is that these matrices extract features of the input representation and as long as the outputs are correlated, attention may still work.
-The script `scripts/random_embedding/train_random_embedding.py` substitutes all qkv matrices with randomly initialized matrices.
-
-All the matrices weights are frozen, while the rest of the transformer is trained. To run this experiment execute:
-1. `python3 scripts/random_embedding/train_random_embedding.py`: this will replace all qkv nets with the same randomly initialized matrix.
-2. `python3 scripts/random_embedding/train_random_embedding.py --independent_init`: this will initialize all three matrices independently.
-The BLEU score is reported at the end of every epoch.

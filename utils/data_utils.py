@@ -4,9 +4,10 @@ import enum
 
 
 import torch
-from torchtext.data import Dataset, BucketIterator, Field, Example
+from torchtext.data import Dataset, BucketIterator, Field, Example, TabularDataset
 from torchtext.data.utils import interleave_keys
-from torchtext import datasets
+#from torchtext import datasets
+from datasets import load_dataset
 import spacy
 
 
@@ -26,8 +27,7 @@ class LanguageDirection(enum.Enum):
 #
 # Caching mechanism datasets and functions (you don't need this but it makes things a lot faster!)
 #
-
-
+    
 class FastTranslationDataset(Dataset):
     """
         After understanding the source code of torch text's IWSLT, TranslationDataset and Dataset I realized how I
@@ -80,6 +80,19 @@ class FastTranslationDataset(Dataset):
         # Call the parent class Dataset's constructor
         super().__init__(examples, fields, **kwargs)
 
+class ttextDataset(Dataset):
+    def __init__(self, dataset, fields, filter_pred):
+        examples = []
+        for dat in dataset:
+            ex = Example()
+
+            setattr(ex, 'src', dat['de'])
+            setattr(ex, 'trg', dat['en'])
+
+            examples.append(ex)
+
+        super().__init__(examples, fields, filter_pred)
+
 
 class DatasetWrapper(FastTranslationDataset):
     """
@@ -113,11 +126,11 @@ def save_cache(cache_path, dataset):
     with open(cache_path, 'w', encoding='utf-8') as cache_file:
         # Interleave source and target tokenized examples, source is on even lines, target is on odd lines
         for ex in dataset.examples:
+            #cache_file.write(ex.src + '\n')
+            #cache_file.write(ex.trg + '\n')
             cache_file.write(' '.join(ex.src) + '\n')
             cache_file.write(' '.join(ex.trg) + '\n')
-
-
-#
+#       
 # End of caching mechanism utilities
 #
 
@@ -161,13 +174,16 @@ def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, us
         # each containing fields with tokenized strings from source and target languages
         src_ext = '.de' if german_to_english else '.en'
         trg_ext = '.en' if german_to_english else '.de'
-        dataset_split_fn = datasets.IWSLT.splits if use_iwslt else datasets.WMT14.splits
-        train_dataset, val_dataset, test_dataset = dataset_split_fn(
-            exts=(src_ext, trg_ext),
-            fields=fields,
-            root=dataset_path,
-            filter_pred=filter_pred
-        )
+        
+        train_dataset, val_dataset, test_dataset = TabularDataset.splits(path='./data/prepared_data', train='train_de-en.csv', validation='val_de-en.csv', test='test_de-en.csv', format='csv', fields=fields, skip_header=True, filter_pred=filter_pred)
+        
+        # dataset_split_fn = datasets.IWSLT.splits if use_iwslt else datasets.WMT14.splits
+        #train_dataset, val_dataset, test_dataset = dataset_split_fn(
+        #     exts=(src_ext, trg_ext),
+        #     fields=fields,
+        #     root=dataset_path,
+        #     filter_pred=filter_pred
+        # )
 
         save_cache(train_cache_path, train_dataset)
         save_cache(val_cache_path, val_dataset)

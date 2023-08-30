@@ -4,7 +4,7 @@
 __pycache__
 
 # This is where torch text datasets like IWSLT and WMT14 will be downloaded to
-.data
+data/
 data/*.csv
 data/iwslt
 data/wikitext-2

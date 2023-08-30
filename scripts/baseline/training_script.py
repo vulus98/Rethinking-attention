@@ -193,7 +193,8 @@ def train_transformer(training_config):
             bleu_score = utils.calculate_bleu_score(baseline_transformer, val_token_ids_loader, trg_field_processor)
 
     # Save the latest transformer in the binaries directory
-    torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(BINARIES_PATH, 'replacement_layer_transformer_FF_L_mha'))
+    model_name = f"Transformer_{training_config['substitute_type']}_{training_config['substitute_class']}_{training_config['num_of_epochs']}.pth"
+    torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(BINARIES_PATH, model_name))
 
 
 if __name__ == "__main__":
@@ -214,17 +215,17 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_name", choices=[el.name for el in DatasetType], help='which dataset to use for training', default=DatasetType.IWSLT.name)
     parser.add_argument("--language_direction", choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.E2G.name)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
-    parser.add_argument("--model_name", type=str, help="transformer model name", default=r'transformer_128.pth')
+    parser.add_argument("--model_name", type=str, help="transformer model name", default=r'Transformer_None_None_20.pth')
 
     # Logging/debugging/checkpoint related (helps a lot with experimentation)
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
     parser.add_argument("--checkpoint_freq", type=int, help="checkpoint model saving (epoch) freq", default=1)
     parser.add_argument("--start_point", type=int, help="checkpoint model (epoch) where to resume training from", default=0)
-    parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FF_large", default="FFNetwork_L")
+    parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FFNetwork_L", choices=["FFNetwork_XS", "FFNetwork_S", "FFNetwork_M", "FFNetwork_L", "FFNetwork_XL"],  default="None")
     parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth")
     parser.add_argument("--layer", help = "If layer is not specified, all layers are substituted", default = None)
     parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=20)
-    parser.add_argument("--substitute_type", type = str, help="Epoch checkpoint to use.", choices=["ALRR", "ALR", "ALSR", "none"], default="none")
+    parser.add_argument("--substitute_type", type = str, help="Type of the substitute layer.", choices=["ALRR", "ALR", "ALSR", "none"], default="None")
     parser.add_argument("--untrained", type=bool, default = True)
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
