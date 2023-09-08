@@ -51,6 +51,14 @@ def extract_input_output(training_config):
 
     transformer.eval()
 
+    train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
+        training_config['dataset_path'],
+        training_config['language_direction'],
+        training_config['dataset_name'],
+        training_config['batch_size'],
+        device,
+        max_len_train=MAX_LEN)
+    
     def getf(i, extra_pref, suffix):
         def write_input_output(model, input, output):
             # input is a tuple with the embeddings in first place
@@ -89,7 +97,7 @@ def extract_input_output(training_config):
 
         for h in hook_handles:
             h.remove()
-
+    
     extract(train_token_ids_loader, "train")
     extract(val_token_ids_loader, "val")
     extract(test_token_ids_loader, "test")
@@ -100,7 +108,7 @@ if __name__ == "__main__":
 
     # Data related args
     parser.add_argument("--dataset_name", choices=[el.name for el in DatasetType], help='which dataset to use for training', default=DatasetType.IWSLT.name)
-    parser.add_argument("--language_direction", choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.E2G.name)
+    parser.add_argument("--language_direction", choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.G2E.name)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
 
     # Logging/debugging related (helps a lot with experimentation)

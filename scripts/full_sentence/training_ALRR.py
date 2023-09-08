@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.optim import Adam
 from torch.nn.utils.rnn import pad_sequence
 
+
 # Local imports
 from pathlib import Path
 import sys
@@ -18,16 +19,16 @@ sys.path.append(str(path_root))
 
 from utils.constants import ALR_CHECKPOINT_FORMAT, SCRATCH, MAX_LEN,CHECKPOINTS_SCRATCH
 import models.definitions.ALRR_FF as nets
-
+from utils.data_utils import LanguageDirection
 DATA_PATH=os.path.join(SCRATCH, "layer_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
                 
-def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", dev = False):
+def prepare_data(data_path, language_direction, chosen_layer = 0, batch_size = 5, t = "train", dev = False):
     if t not in ["train", "test", "val"]:
         raise ValueError("ERROR: t must be train, test, or val.")
-    in_path =   os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_ALRR_layer{chosen_layer}_inputs_{t}")
-    out_path =  os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_ALRR_layer{chosen_layer}_outputs_{t}")
-    mask_path = os.path.join(data_path,f"128emb_20ep_IWSLT_E2G_masks_{t}")
+    in_path =   os.path.join(data_path,f"128emb_20ep_IWSLT_{language_direction}_ALRR_layer{chosen_layer}_inputs_{t}")
+    out_path =  os.path.join(data_path,f"128emb_20ep_IWSLT_{language_direction}_ALRR_layer{chosen_layer}_outputs_{t}")
+    mask_path = os.path.join(data_path,f"128emb_20ep_IWSLT_{language_direction}_masks_{t}")
     dataset = AttentionDataset(in_path, out_path, mask_path, MAX_LEN)
     if dev:
         dataset, _ = dataset = random_split(dataset, [0.2, 0.8])
@@ -41,7 +42,7 @@ def training_replacement_FF(params):
     print("FF model created")
     lr_optimizer = Adam(model.parameters(), lr=0.001,betas=(0.9, 0.98), eps=1e-9)
     print("Preparing data")
-    data_loader=prepare_data(params['dataset_path'], chosen_layer = params['num_of_curr_trained_layer'], batch_size = params["batch_size"]) 
+    data_loader=prepare_data(params['dataset_path'], params['language_direction'], chosen_layer = params['num_of_curr_trained_layer'], batch_size = params["batch_size"]) 
     mse_loss=nn.MSELoss()
     for epoch in range(params['num_of_epochs']):
         print("Epoch: ",epoch)
@@ -170,7 +171,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
     parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/ALR.py", required=True)
-    
+    parser.add_argument("--language_direction", choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.G2E.name)
     
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary

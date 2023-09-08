@@ -1,5 +1,5 @@
 #!/bin/bash
-DIR="$HOME/sbatch_log/$1"
+DIR="$SCRATCH/pytorch-original-transformer/sbatch_log/$1"
 if [ ! -d $DIR ];then
     mkdir $DIR 
 fi

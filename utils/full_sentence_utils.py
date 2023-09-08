@@ -79,6 +79,12 @@ def replace_sublayer(transformer: nn.Module, substitute: nn.Module, layer:int, d
     transformer.encoder.encoder_layers[layer] = EncoderLayerSubstitute(transformer.encoder.encoder_layers[layer], substitute, device)
     return transformer
 
+def replace_encoder(transformer: nn.Module, substitute: nn.Module, layer:int):
+    transformer.encoder.encoder_layers[layer] = substitute
+    return transformer
+
+
+
 class Attention(nn.Module):
     def __init__(self, mha: MultiHeadedAttention):
         super().__init__()
@@ -464,23 +470,46 @@ def substitute_sublayer(baseline_transformer, substitute_class, substitute_model
         else:
             ff_net.train()
         replace_sublayer(baseline_transformer, ff_net, l, device)
-    
+
+def substitute_encoder_layer(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained):
+    import models.definitions.ELR_FF as m
+    FF_net =getattr(m, substitute_class)
+    print(f"Substituing attention with {FF_net}")
+    layers = layers if layers is not None else range(6)
+    print(layers)
+    # Step 3: Substitute attention layers   
+    for l in layers:
+        ff_net = FF_net().to(device)
+        if not untrained:
+            ckpt_model_name = ALR_CHECKPOINT_FORMAT.format(epoch, l)
+            model_path=os.path.join(substitute_model_path, 'layer{0}'.format(l), ckpt_model_name)
+            model_state = torch.load(model_path)
+            ff_net.load_state_dict(model_state)
+            ff_net.eval()
+        else:
+            ff_net.train()
+        replace_encoder(baseline_transformer, ff_net, l)
+
 def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch,t, untrained=False,  multi_device = False, decoder = False):
     
     if t == "ALR":
-        print("Substitute mha only")
+        print("Substitute ALR layer")
         if decoder == False:
             substitute_ALR_encoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
         else:
             substitute_ALR_decoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
     elif t == "ALRR":
-        print("Substitute ELR layer")
+        print("Substitute ALRR layer")
         substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
     elif t == "ALSR":
-        print("Substitute separate mha layer")
+        print("Substitute ALSR layer")
         substitute_separate_mha(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
+    elif t == "ELR":
+        print("Substitute ELR layer")
+        substitute_encoder_layer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)
     else:
         raise ValueError("Attention type in ['ALR', 'ALRR', 'ALSR']")
+    
 def pad_shape(batch, masks = False):
     shape = batch.shape
     if masks:

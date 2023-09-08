@@ -28,3 +28,5 @@ training_script_aml.py
 pytorch-original-transformer
 
 sbatch_log
+layer_outputs
+mha_outputs

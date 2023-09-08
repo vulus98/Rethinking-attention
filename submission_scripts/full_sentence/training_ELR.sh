@@ -6,4 +6,4 @@
 #SBATCH --time 250
 source $SCRATCH/miniconda3/etc/profile.d/conda.sh
 source activate pytorch-transformer 
-python -u scripts/full_sentence/training_ALR.py "$@"
+python -u scripts/full_sentence/training_ELR.py "$@"

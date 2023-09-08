@@ -18,7 +18,7 @@ path_root = Path(__file__).parents[2]
 sys.path.append(str(path_root))
 import models.definitions.ALR_FF as FF_models
 from utils.constants import SCRATCH, MAX_LEN, CHECKPOINTS_SCRATCH, ALR_CHECKPOINT_FORMAT
-
+from utils.data_utils import LanguageDirection
 DATA_PATH=os.path.join(SCRATCH, "mha_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
 def MAPE(target, output):
@@ -28,7 +28,7 @@ def MAPE(target, output):
         relative_error = torch.abs(output - target) / torch.max(torch.abs(target), torch.ones(output.shape, device = device)*1e-32)
         return torch.mean(relative_error)
          
-def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", decoder = False):
+def prepare_data(data_path,language_direction, chosen_layer = 0, batch_size = 5, t = "train", decoder = False):
     if t not in ["train", "test", "val"]:
         raise ValueError("ERROR: t must be train, test, or val.")
     if t == "val":
@@ -36,15 +36,15 @@ def prepare_data(data_path, chosen_layer = 0, batch_size = 5, t = "train", decod
         print("ATTENTION VALIDATION USED IN TRAINING, ONLY OK FOR DEBUGGING")
         print("#"*100)
     if not decoder:
-        in_path =   os.path.join(data_path,"encoder", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_v_inputs_{t}")
-        out_path =  os.path.join(data_path,"encoder", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_outputs_{t}")
-        mask_path = os.path.join(data_path,"encoder", f"128emb_20ep_IWSLT_E2G_masks_{t}")
+        in_path =   os.path.join(data_path,"encoder", f"128emb_20ep_IWSLT_{language_direction}_layer{chosen_layer}_v_inputs_{t}")
+        out_path =  os.path.join(data_path,"encoder", f"128emb_20ep_IWSLT_{language_direction}_layer{chosen_layer}_outputs_{t}")
+        mask_path = os.path.join(data_path,"encoder", f"128emb_20ep_IWSLT_{language_direction}_masks_{t}")
         dataset = AttentionEncoderDataset(in_path, out_path, mask_path, MAX_LEN)
         return DataLoader(dataset,  collate_fn=collate_batch, batch_size= batch_size)
     else:
-        in_path =   os.path.join(data_path,"decoder_self", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_v_inputs_{t}")
-        out_path =  os.path.join(data_path,"decoder_self", f"128emb_20ep_IWSLT_E2G_layer{chosen_layer}_outputs_{t}")
-        mask_path = os.path.join(data_path,"decoder_self", f"128emb_20ep_IWSLT_E2G_masks_{t}")
+        in_path =   os.path.join(data_path,"decoder_self", f"128emb_20ep_IWSLT_{language_direction}_layer{chosen_layer}_v_inputs_{t}")
+        out_path =  os.path.join(data_path,"decoder_self", f"128emb_20ep_IWSLT_{language_direction}_layer{chosen_layer}_outputs_{t}")
+        mask_path = os.path.join(data_path,"decoder_self", f"128emb_20ep_IWSLT_{language_direction}_masks_{t}")
         dataset = AttentionDecoderDataset(in_path, out_path, mask_path, MAX_LEN)
         return DataLoader(dataset, collate_fn=collate_batch_decoder, batch_size = batch_size )
     
@@ -61,7 +61,7 @@ def training_replacement_FF(params):
     print("FF model created")
     lr_optimizer = Adam(model.parameters(), lr=0.0001,betas=(0.9, 0.98), eps=1e-9)
     print("Preparing data")
-    data_loader=prepare_data(params['dataset_path'], chosen_layer = params['num_of_curr_trained_layer'], batch_size = params["batch_size"], decoder = params["decoder"]) 
+    data_loader=prepare_data(params['dataset_path'], params['language_direction'], chosen_layer = params['num_of_curr_trained_layer'], batch_size = params["batch_size"], decoder = params["decoder"]) 
       
     mse_loss=nn.MSELoss()
     # mean_abs_percentage_error = MeanAbsolutePercentageError()
@@ -305,7 +305,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=0)
     parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/ALR.py", required=True)
     parser.add_argument("--decoder", action = "store_true")
-    
+    parser.add_argument("--language_direction", choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.G2E.name)
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
     training_config = dict()

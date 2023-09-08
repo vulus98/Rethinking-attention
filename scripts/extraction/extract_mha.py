@@ -71,6 +71,14 @@ def extract_input_output(training_config):
     checkpoint = torch.load(training_config["path_to_weights"])
     transformer.load_state_dict(checkpoint['state_dict'])
     
+    train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
+        training_config['dataset_path'],
+        training_config['language_direction'],
+        training_config['dataset_name'],
+        training_config['batch_size'],
+        device,
+        max_len_train=MAX_LEN)
+    
     mha_to_mha2(transformer, attention_type = "encoder")
     mha_to_mha2(transformer, attention_type = "decoder_self")
     mha_to_mha2(transformer, attention_type = "decoder_cross")
@@ -166,7 +174,7 @@ if __name__ == "__main__":
 
     # Data related args
     parser.add_argument("--dataset_name", choices=[el.name for el in DatasetType], help='which dataset to use for training', default=DatasetType.IWSLT.name)
-    parser.add_argument("--language_direction", choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.E2G.name)
+    parser.add_argument("--language_direction", choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.G2E.name)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
 
     # Logging/debugging related (helps a lot with experimentation)

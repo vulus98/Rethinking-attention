@@ -47,7 +47,7 @@ def evaluate_transformer(evaluate_config):
     
      
     # Step 3: substitute attention
-    if evaluate_config["substitute_type"] != "none":
+    if evaluate_config["substitute_type"] != "None":
         substitute_attention(baseline_transformer, 
                              evaluate_config["substitute_class"], 
                              evaluate_config["substitute_model_path"], 
@@ -60,7 +60,7 @@ def evaluate_transformer(evaluate_config):
         print("\n\t NO SUBSTITUTION IN ENCODER\n")
         print("#"*100)
         
-    if evaluate_config["substitute_type_d"] != "none":
+    if evaluate_config["substitute_type_d"] != "None":
         substitute_attention(baseline_transformer, 
                              evaluate_config["substitute_class_d"], 
                              evaluate_config["substitute_model_path_d"], 
@@ -74,6 +74,13 @@ def evaluate_transformer(evaluate_config):
         print("\n\t NO SUBSTITUTION IN DECODER\n")
         print("#"*100)
         
+    train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
+        evaluate_config['dataset_path'],
+        evaluate_config['language_direction'],
+        evaluate_config['dataset_name'],
+        evaluate_config['batch_size'],
+        device,
+        max_len_train=MAX_LEN)
     # Step 4: Compute BLEU
     with torch.no_grad():
         utils.calculate_bleu_score(baseline_transformer, val_token_ids_loader, trg_field_processor)
@@ -86,11 +93,11 @@ if __name__ == "__main__":
     # Modifiable args - feel free to play with these (only small subset is exposed by design to avoid cluttering)
     #
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_name", type=str, help="transformer model name", default=r'transformer_128.pth')
+    parser.add_argument("--model_name", type=str, help="transformer model name", default=r'Transformer_None_None_20.pth')
 
     # Keep these 2 in sync with the model you pick via model_name
     parser.add_argument("--dataset_name", type=str, choices=['IWSLT', 'WMT14'], help='which dataset to use for training', default=DatasetType.IWSLT.name)
-    parser.add_argument("--language_direction", type=str, choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.E2G.name)
+    parser.add_argument("--language_direction", type=str, choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.G2E.name)
 
     # Cache files and datasets are downloaded here during training, keep them in sync for speed
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
@@ -99,19 +106,19 @@ if __name__ == "__main__":
     parser.add_argument("--multi_device", action = "store_true", help =  "Ignore, useful for bigger models which are not used")
     
     # Params for encoder substitution
-    parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FFNetwork_L", default = "None")
+    parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FFNetwork_L", default = "FFNetwork_L")
     parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = None)
     parser.add_argument("--layers", nargs='+',type = int ,help = "List of layers to substitute. If layer is not specified, all layers are substituted")
-    parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.")
+    parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=41)
     parser.add_argument("--untrained", action = "store_true")
-    parser.add_argument("--substitute_type", type = str, help="Type of approach to use for substitution", choices=["ALRR", "ALR", "ALSR", "none"], default="none")
+    parser.add_argument("--substitute_type", type = str, help="Type of approach to use for substitution", choices=["ALRR", "ALR", "ALSR", "ELR", "None"], default="None")
     
     # Params for decoder substitution
     parser.add_argument("--substitute_class_d", type=str, help="class that substitutes attention e.g. FFNetwork_L", default="None")
     parser.add_argument("--layers_d", nargs='+',type = int ,help = "List of layers to substitute. If layer is not specified, all layers are substituted")
     parser.add_argument("--epoch_d", type = int, help="Epoch checkpoint to use.")
     parser.add_argument("--untrained_d", action = "store_true")
-    parser.add_argument("--substitute_type_d", type = str, help="Type of approach to use for substitution", choices=["ALRR", "ALR", "ALSR", "none"], default="none")
+    parser.add_argument("--substitute_type_d", type = str, help="Type of approach to use for substitution", choices=["ALRR", "ALR", "ALSR", "None"], default="None")
     parser.add_argument("--substitute_model_path_d", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = None)
     
     # Decoding related args
