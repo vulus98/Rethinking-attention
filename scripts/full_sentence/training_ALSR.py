@@ -20,12 +20,11 @@ from utils.constants import MHA_SEPARATE_CHECKPOINT_FORMAT, SCRATCH, MAX_LEN, CH
 import models.definitions.ALSR_FF as nets
 from utils.data_utils import LanguageDirection
 
-DATA_PATH=os.path.join(SCRATCH, "mha_outputs")
+DATA_PATH=os.path.join(SCRATCH,"pytorch-original-transformer", "mha_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
 
 def MAPE(target, output):
     #Mean Absolute Percentage Error
-
     with torch.no_grad():
         relative_error = torch.abs(output - target) / torch.max(torch.abs(target), torch.ones(output.shape, device = device)*1e-32)
         return torch.mean(relative_error)

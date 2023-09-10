@@ -14,7 +14,8 @@ from models.definitions.transformer_model import Transformer
 from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_src_and_trg_batches, DatasetType, LanguageDirection
 from utils.constants import *
 from utils.full_sentence_utils import mha_to_mha2
-
+sum_k = 0
+sum_q = 0
 """
 B = batch size
 S = sentence length
@@ -84,9 +85,11 @@ def extract_input_output(training_config):
     mha_to_mha2(transformer, attention_type = "decoder_cross")
     
     transformer.eval()
-    
+
     def getf(i, suffix, output_path):
         def write_input_output(model, input, output):
+            global sum_k
+            global sum_q
             # input is a tuple  (queries, keys, values, mask)
             # mask is ignored, queries, keys and values are stored separately
             # In self-attention queries = keys = values 
@@ -97,8 +100,10 @@ def extract_input_output(training_config):
             in_filename_q = f"{output_path}/{prefix}_layer{i}_q_inputs_{suffix}"
             in_filename_k = f"{output_path}/{prefix}_layer{i}_k_inputs_{suffix}"
             in_filename_v = f"{output_path}/{prefix}_layer{i}_v_inputs_{suffix}"
-            
             out_filename = f"{output_path}/{prefix}_layer{i}_outputs_{suffix}"
+            if (output_path.split("/")[-1] == "decoder_cross" and suffix == "train"):
+                sum_q += q.shape[0]
+                sum_k += k.shape[0]
             # ad-hoc appending to the same file
             with open(in_filename_q, 'ab') as f:
                 np.save(f, q)
@@ -153,7 +158,6 @@ def extract_input_output(training_config):
             with open(mask_filename_dec_cross_src, 'ab') as f:
                 np.save(f, src_mask.cpu().detach().numpy())
             
-            
             transformer.forward(src_token_ids_batch, trg_token_ids_batch_input, src_mask, trg_mask)
 
         for h in hook_handles:
@@ -193,3 +197,5 @@ if __name__ == "__main__":
     output_path_decoder_self = os.path.join(training_config["output_path"], "decoder_self")
     output_path_decoder_cross = os.path.join(training_config["output_path"], "decoder_cross")    
     extract_input_output(training_config)
+    print(f"sum_q: {sum_q}")
+    print(f"sum_k: {sum_k}")

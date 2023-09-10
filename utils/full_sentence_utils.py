@@ -79,8 +79,8 @@ def replace_sublayer(transformer: nn.Module, substitute: nn.Module, layer:int, d
     transformer.encoder.encoder_layers[layer] = EncoderLayerSubstitute(transformer.encoder.encoder_layers[layer], substitute, device)
     return transformer
 
-def replace_encoder(transformer: nn.Module, substitute: nn.Module, layer:int):
-    transformer.encoder.encoder_layers[layer] = substitute
+def replace_encoder(transformer: nn.Module, substitute: nn.Module, layer:int, device = "cuda"):
+    transformer.encoder.encoder_layers[layer] = SublayerZeroSubstitute(substitute, device)
     return transformer
 
 
@@ -225,15 +225,15 @@ def mha_to_mha2(transformer: Transformer, layers:list = [0,1,2,3,4,5], attention
         for l in layers:
             transformer.encoder.encoder_layers[l].multi_headed_attention =  MultiHeadedAttention2(transformer.encoder.encoder_layers[l].multi_headed_attention)
             
-    elif attention_type == "decoder_self": 
+    elif attention_type == "decoder": 
         for l in layers:
             transformer.decoder.decoder_layers[l].trg_multi_headed_attention =  MultiHeadedAttention2(transformer.decoder.decoder_layers[l].trg_multi_headed_attention)
             
-    elif attention_type == "decoder_cross":
+    elif attention_type == "decoder_ca":
         for l in layers:
             transformer.decoder.decoder_layers[l].src_multi_headed_attention =  MultiHeadedAttention2(transformer.decoder.decoder_layers[l].src_multi_headed_attention)
     else:
-        raise ValueError("attention_type must be in ['encoder', 'decoder_self', 'decoder_cross']")
+        raise ValueError("attention_type must be in ['encoder', 'decoder_self', 'decoder_ca']")
 
 class AttentionWeights(nn.Module):
     def __init__(self, mha: MultiHeadedAttention):
@@ -326,6 +326,61 @@ class AttentionSubstitute(nn.Module):
         outputs, padding =  torch.split(outputs,[S, MAX_LEN - S] , dim = 2)   
         assert(np.prod(padding.shape) == (padding == 0).sum())
         return outputs 
+    
+class AttentionSubstituteDecoderCA(nn.Module):
+    def __init__(self, FF_net:nn.Module, device = "cuda"):
+        """Substitutes mha with a single FF. 
+
+        Args:
+            ff_list (): Feed forward nets that compute the attention values
+        """
+        super().__init__()
+        self.ff = FF_net
+        self.device = device
+        
+    def forward(self, query, key, value, mask):
+        """This layer substitutes the Attention layer in mha2. 
+
+        Args:
+            query (Tensor): B x S x MD
+            key (Tensor):  B x S x MD
+            value (Tensor):  B x S x MD
+            mask (Tensor): B x 1 x 1 x S
+
+        Returns:
+            Tensor: B x NH x S x HD
+        """
+        B = len(value)
+        S = query.shape[1]
+        HD = BASELINE_MODEL_DIMENSION // BASELINE_MODEL_NUMBER_OF_HEADS
+        # 1. Pad to MAX_LEN
+        enc_inputs = torch.cat([value, torch.zeros(pad_shape(value), device = self.device)], dim = 1)
+        enc_inputs_shape = enc_inputs.shape
+
+        dec_inputs = torch.cat([query, torch.zeros(pad_shape(query), device = self.device)], dim = 1)
+        dec_inputs_shape = dec_inputs.shape
+        # 2. Flatten
+        mask = torch.squeeze(torch.squeeze(mask, dim = 1), dim = 1)
+        mask = torch.cat([mask, torch.zeros(pad_shape(mask, masks = True), device = self.device, dtype=torch.bool) ], dim = 1)
+        # 2. Flatten
+        enc_mask = torch.repeat_interleave(mask, enc_inputs.shape[-1] ,dim=1)
+        dec_mask = torch.cat([torch.ones((B, S), device = self.device, dtype=torch.bool), torch.zeros((B, MAX_LEN-S), device = self.device, dtype=torch.bool)], dim = 1)
+        dec_mask = torch.repeat_interleave(dec_mask, dec_inputs.shape[-1] ,dim=1)
+        enc_inputs = enc_inputs.reshape((enc_inputs_shape[0], enc_inputs_shape[1]* enc_inputs_shape[2]))
+        dec_inputs = dec_inputs.reshape((dec_inputs_shape[0], dec_inputs_shape[1]* dec_inputs_shape[2]))
+
+        # 3. Compute
+        enc_inputs = enc_inputs*enc_mask
+        dec_inputs = dec_inputs*dec_mask
+        inputs = torch.cat([enc_inputs, dec_inputs], dim = 1)
+        # mask = mask.reshape((B,MAX_LEN  * HD, BASELINE_MODEL_NUMBER_OF_HEADS)).transpose(1,2)
+        outputs = self.ff(inputs, dec_mask)
+        # 4. Unflatten and unpad
+        # shape = BxNHxSxHD
+        outputs = outputs.reshape((outputs.shape[0], MAX_LEN, -1, HD)).transpose(1,2)
+        outputs, padding =  torch.split(outputs,[S, MAX_LEN - S] , dim = 2)   
+        assert(np.prod(padding.shape) == (padding == 0).sum())
+        return outputs 
 
 def replace_mha(transformer: nn.Module, substitute: nn.Module, layer:int, device = "cuda", attention_type = "encoder"):
     if attention_type == "encoder":
@@ -333,14 +388,13 @@ def replace_mha(transformer: nn.Module, substitute: nn.Module, layer:int, device
             raise TypeError("Use function mha_to_mha2 first")
         transformer.encoder.encoder_layers[layer].multi_headed_attention.attention = AttentionSubstitute(substitute, device = device)  
         
-    elif attention_type == "decoder_self": 
-            transformer.decoder.decoder_layers[layer].trg_multi_headed_attention.attention =  AttentionSubstituteDecoder(substitute, device)
+    elif attention_type == "decoder": 
+        transformer.decoder.decoder_layers[layer].trg_multi_headed_attention.attention =  AttentionSubstituteDecoder(substitute, device)
             
-    elif attention_type == "decoder_cross":
-        raise NotImplementedError()
-    
+    elif attention_type == "decoder_ca":
+        transformer.decoder.decoder_layers[layer].src_multi_headed_attention.attention = AttentionSubstituteDecoderCA(substitute, device = device) 
     else:
-        raise ValueError("attention_type must be in ['encoder', 'decoder_self', 'decoder_cross']")
+        raise ValueError("attention_type must be in ['encoder', 'decoder', 'decoder_ca']")
     
     return transformer
 
@@ -391,7 +445,7 @@ def substitute_ALR_encoder(baseline_transformer, substitute_class, substitute_mo
     import models.definitions.ALR_FF as m
     FF_net = getattr(m, substitute_class)
     print(f"Substituing attention with {FF_net}")
-    mha_to_mha2(baseline_transformer)
+    mha_to_mha2(baseline_transformer, attention_type="encoder")
     layers = layers if layers is not None else range(6)    
     print(layers)
     for l in layers:
@@ -406,13 +460,13 @@ def substitute_ALR_encoder(baseline_transformer, substitute_class, substitute_mo
         else:
             print("Test uninitialized")
         ff_net.eval()
-        replace_mha(baseline_transformer, ff_net, l, device)
+        replace_mha(baseline_transformer, ff_net, l, device, attention_type="encoder")
 
 def substitute_ALR_decoder(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained, multi_device):
     import models.definitions.ALR_FF as m
     FF_net = getattr(m, substitute_class)
     print(f"Substituing attention with {FF_net}")
-    mha_to_mha2(baseline_transformer, attention_type="decoder_self")
+    mha_to_mha2(baseline_transformer, attention_type="decoder")
     layers = layers if layers is not None else range(6)    
     print(layers)
     for l in layers:
@@ -427,7 +481,28 @@ def substitute_ALR_decoder(baseline_transformer, substitute_class, substitute_mo
         else:
             print("Test uninitialized")
         ff_net.eval()
-        replace_mha(baseline_transformer, ff_net, l, device, attention_type="decoder_self")
+        replace_mha(baseline_transformer, ff_net, l, device, attention_type="decoder")
+
+def substitute_ALR_decoder_ca(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained, multi_device):
+    import models.definitions.ALR_FF as m
+    FF_net = getattr(m, substitute_class)
+    print(f"Substituing attention with {FF_net}")
+    mha_to_mha2(baseline_transformer, attention_type="decoder_ca")
+    layers = layers if layers is not None else range(6)    
+    print(layers)
+    for l in layers:
+        ff_net = FF_net()
+        if not multi_device:
+            ff_net.to(device)
+        if not untrained:
+            model_path=os.path.join(substitute_model_path, f'layer{l}', ALR_CHECKPOINT_FORMAT.format(epoch, l))
+            print(f"Loading weights from {model_path}")
+            model_state = torch.load(model_path)
+            ff_net.load_state_dict(model_state)
+        else:
+            print("Test uninitialized")
+        ff_net.eval()
+        replace_mha(baseline_transformer, ff_net, l, device, attention_type="decoder_ca")
 
 def substitute_separate_mha(baseline_transformer, substitute_class, substitute_model_path, layers, epoch, untrained):
     import models.definitions.ALSR_FF as m
@@ -488,16 +563,19 @@ def substitute_encoder_layer(baseline_transformer, substitute_class, substitute_
             ff_net.eval()
         else:
             ff_net.train()
-        replace_encoder(baseline_transformer, ff_net, l)
+        replace_encoder(baseline_transformer, ff_net, l, device)
 
-def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch,t, untrained=False,  multi_device = False, decoder = False):
-    
+def substitute_attention(baseline_transformer, substitute_class, substitute_model_path, layer, epoch,t, att_replacement, untrained=False,  multi_device = False):
     if t == "ALR":
         print("Substitute ALR layer")
-        if decoder == False:
+        if att_replacement == "encoder":
             substitute_ALR_encoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
-        else:
+        elif att_replacement == "decoder":
             substitute_ALR_decoder(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
+        elif att_replacement == "decoder_ca":
+            substitute_ALR_decoder_ca(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained, multi_device)
+        else:
+            raise ValueError("Attention type in ['encoder', 'decoder', 'decoder_ca']")
     elif t == "ALRR":
         print("Substitute ALRR layer")
         substitute_sublayer(baseline_transformer, substitute_class, substitute_model_path, layer, epoch, untrained)

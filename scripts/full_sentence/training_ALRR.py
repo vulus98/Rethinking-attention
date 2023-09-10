@@ -20,9 +20,15 @@ sys.path.append(str(path_root))
 from utils.constants import ALR_CHECKPOINT_FORMAT, SCRATCH, MAX_LEN,CHECKPOINTS_SCRATCH
 import models.definitions.ALRR_FF as nets
 from utils.data_utils import LanguageDirection
-DATA_PATH=os.path.join(SCRATCH, "layer_outputs")
+DATA_PATH=os.path.join(SCRATCH, "pytorch-original-transformer","layer_outputs")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # checking whether you have a GPU, I hope so!
-                
+
+def MAPE(target, output):
+    #Mean Absolute Percentage Error
+    with torch.no_grad():
+        relative_error = torch.abs(output - target) / torch.max(torch.abs(target), torch.ones(output.shape, device = device)*1e-32)
+        return torch.mean(relative_error)
+          
 def prepare_data(data_path, language_direction, chosen_layer = 0, batch_size = 5, t = "train", dev = False):
     if t not in ["train", "test", "val"]:
         raise ValueError("ERROR: t must be train, test, or val.")
@@ -48,6 +54,8 @@ def training_replacement_FF(params):
         print("Epoch: ",epoch)
         epoch_loss=0
         num_embeddings=0
+        mapes = []
+        start = time.time()
         for (data,label, mask) in data_loader:
             lr_optimizer.zero_grad()
             pred=model(data,mask)
@@ -59,10 +67,11 @@ def training_replacement_FF(params):
             lr_optimizer.step()
             with torch.no_grad():
                 epoch_loss+=loss.item()*torch.sum(torch.flatten(mask)).item()
+                mapes.append(MAPE(label, pred))
         if(epoch%20==0):
             ckpt_model_name = ALR_CHECKPOINT_FORMAT.format(epoch+1, params['num_of_curr_trained_layer'])
             torch.save(model.state_dict(), os.path.join(training_config["checkpoints_folder"],ckpt_model_name))
-        print("Loss per embedding element: ",epoch_loss/num_embeddings)
+        print(f"Loss per embedding element:{epoch_loss/num_embeddings}, MAPE: {MAPE(label, pred)}, time: {time.time() - start}")
 
 class AttentionDataset(torch.utils.data.Dataset):
     def __init__(self, input_path, output_path, mask_path, n, t = "max"):

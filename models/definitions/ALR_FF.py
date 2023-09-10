@@ -237,3 +237,100 @@ class FFNetwork_decoder_XL(nn.ModuleList):
             outputs.append(o * padding_mask[:, i].view((-1, 1)).repeat_interleave(self.model_dimension, dim = 1))
         return torch.stack(outputs, dim = 1)
     
+    
+class FFNetwork_cross_decoder_XS(nn.ModuleList):
+    def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
+        super(FFNetwork_cross_decoder_XS, self).__init__()
+        self.sentence_length=sentence_length
+        self.model_dimension=model_dimension
+        self.width=2*self.sentence_length*self.model_dimension
+        self.layers=list()
+        widths=[1,256,2]
+        self.depth=len(widths)-1
+        self.layers=nn.ModuleList()
+        for i in range(self.depth):
+            self.layers.extend([nn.LayerNorm(self.width // widths[i]),nn.Linear(self.width // widths[i], self.width // widths[i+1])])
+            if(i<self.depth-1):
+                self.layers.append(nn.LeakyReLU())
+
+    def forward(self,data,mask):
+        for layer in self.layers:
+            data=layer(data)
+        return data*mask
+
+class FFNetwork_cross_decoder_S(nn.ModuleList):
+    def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
+        super(FFNetwork_cross_decoder_S, self).__init__()
+        self.sentence_length=sentence_length
+        self.model_dimension=model_dimension
+        self.width=2*self.sentence_length*self.model_dimension
+        self.layers=list()
+        widths=[1,128,2]
+        self.depth=len(widths)-1
+        self.layers=nn.ModuleList()
+        for i in range(self.depth):
+            self.layers.extend([nn.LayerNorm(self.width // widths[i]),nn.Linear(self.width // widths[i], self.width // widths[i+1])])
+            if(i<self.depth-1):
+                self.layers.append(nn.LeakyReLU())
+    def forward(self,data,mask):
+        for layer in self.layers:
+            data=layer(data)
+        return data*mask
+
+class FFNetwork_cross_decoder_M(nn.ModuleList):
+    def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
+        super(FFNetwork_cross_decoder_M, self).__init__()
+        self.sentence_length=sentence_length
+        self.model_dimension=model_dimension
+        self.width=2*self.sentence_length*self.model_dimension
+        self.layers=list()
+        widths=[1,8,2]
+        self.depth=len(widths)-1
+        self.layers=nn.ModuleList()
+        for i in range(self.depth):
+            self.layers.extend([nn.LayerNorm(self.width // widths[i]),nn.Linear(self.width // widths[i], self.width // widths[i+1])])
+            if(i<self.depth-1):
+                self.layers.append(nn.LeakyReLU())
+    def forward(self,data,mask):
+        for layer in self.layers:
+            data=layer(data)
+        return data*mask
+
+class FFNetwork_cross_decoder_L(nn.ModuleList):
+    def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
+        super(FFNetwork_cross_decoder_L, self).__init__()
+        self.sentence_length=sentence_length
+        self.model_dimension=model_dimension
+        self.width=2*self.sentence_length*self.model_dimension
+        self.layers=list()
+        widths=[1,2,2]
+        self.depth=len(widths)-1
+        self.layers=nn.ModuleList()
+        for i in range(self.depth):
+            self.layers.extend([nn.LayerNorm(self.width // widths[i]),nn.Linear(self.width // widths[i], self.width // widths[i+1])])
+            if(i<self.depth-1):
+                self.layers.append(nn.LeakyReLU())
+    def forward(self,data,mask):
+        for layer in self.layers:
+            data=layer(data)
+        return data*mask
+
+class FFNetwork_cross_decoder_XL(nn.ModuleList):
+    def __init__(self, model_dimension=128,sentence_length=MAX_LEN):
+        super(FFNetwork_cross_decoder_XL, self).__init__()
+        self.sentence_length=sentence_length
+        self.model_dimension=model_dimension
+        self.width=2*self.sentence_length*self.model_dimension
+        self.layers=list()
+        widths=[1,2,0.5]
+        self.depth=len(widths)-1
+        self.layers=nn.ModuleList()
+        for i in range(self.depth):
+            self.layers.extend([nn.LayerNorm(int(self.width * widths[i])),nn.Linear(int(self.width * widths[i]), int(self.width * widths[i+1]))])
+            if(i<self.depth-1):
+                self.layers.append(nn.LeakyReLU())
+                
+    def forward(self,data,mask):
+        for layer in self.layers:
+            data=layer(data)
+        return data*mask

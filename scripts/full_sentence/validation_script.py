@@ -54,6 +54,7 @@ def evaluate_transformer(evaluate_config):
                              evaluate_config["layers"],
                              evaluate_config["epoch"],
                              evaluate_config["substitute_type"],
+                             "encoder",
                              untrained = evaluate_config["untrained"]) 
     else:
         print("#"*100)
@@ -67,11 +68,26 @@ def evaluate_transformer(evaluate_config):
                              evaluate_config["layers_d"],
                              evaluate_config["epoch_d"],
                              evaluate_config["substitute_type_d"],
-                             untrained = evaluate_config["untrained"],
-                             multi_device = evaluate_config["multi_device_d"], decoder = True)
+                             "decoder",
+                             untrained = evaluate_config["untrained"])
     else:
         print("#"*100)
         print("\n\t NO SUBSTITUTION IN DECODER\n")
+        print("#"*100)
+
+
+    if evaluate_config["substitute_type_d_ca"] != "None":
+        substitute_attention(baseline_transformer, 
+                             evaluate_config["substitute_class_d_ca"], 
+                             evaluate_config["substitute_model_path_d_ca"], 
+                             evaluate_config["layers_d_ca"],
+                             evaluate_config["epoch_d_ca"],
+                             evaluate_config["substitute_type_d_ca"],
+                             "decoder_ca",
+                             untrained = evaluate_config["untrained"])
+    else:
+        print("#"*100)
+        print("\n\t NO SUBSTITUTION IN DECODER CROSS ATTENTION\n")
         print("#"*100)
         
     train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(
@@ -102,8 +118,6 @@ if __name__ == "__main__":
     # Cache files and datasets are downloaded here during training, keep them in sync for speed
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
     parser.add_argument("--batch_size", type=int, help="target number of tokens in a src/trg batch", default=1500)
-    parser.add_argument("--multi_device_d", action = "store_true", help =  "Ignore, useful for bigger models which are not used")
-    parser.add_argument("--multi_device", action = "store_true", help =  "Ignore, useful for bigger models which are not used")
     
     # Params for encoder substitution
     parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FFNetwork_L", default = "FFNetwork_L")
@@ -111,16 +125,24 @@ if __name__ == "__main__":
     parser.add_argument("--layers", nargs='+',type = int ,help = "List of layers to substitute. If layer is not specified, all layers are substituted")
     parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=41)
     parser.add_argument("--untrained", action = "store_true")
-    parser.add_argument("--substitute_type", type = str, help="Type of approach to use for substitution", choices=["ALRR", "ALR", "ALSR", "ELR", "None"], default="None")
+    parser.add_argument("--substitute_type", type = str, help="Type of approach to use for substitution", choices=["ALR", "ELR", "ALRR", "ALSR", "None"], default="None")
     
     # Params for decoder substitution
     parser.add_argument("--substitute_class_d", type=str, help="class that substitutes attention e.g. FFNetwork_L", default="None")
     parser.add_argument("--layers_d", nargs='+',type = int ,help = "List of layers to substitute. If layer is not specified, all layers are substituted")
-    parser.add_argument("--epoch_d", type = int, help="Epoch checkpoint to use.")
+    parser.add_argument("--epoch_d", type = int, help="Epoch checkpoint to use.", default=41)
     parser.add_argument("--untrained_d", action = "store_true")
-    parser.add_argument("--substitute_type_d", type = str, help="Type of approach to use for substitution", choices=["ALRR", "ALR", "ALSR", "None"], default="None")
+    parser.add_argument("--substitute_type_d", type = str, help="Type of approach to use for substitution", choices=["ALR", "None"], default="None")
     parser.add_argument("--substitute_model_path_d", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = None)
     
+    # Params for decoder self attention substitution
+    parser.add_argument("--substitute_class_d_ca", type=str, help="class that substitutes attention e.g. FFNetwork_cross_decoder_L", default="None")
+    parser.add_argument("--layers_d_ca", nargs='+',type = int ,help = "List of layers to substitute. If layer is not specified, all layers are substituted")
+    parser.add_argument("--epoch_d_ca", type = int, help="Epoch checkpoint to use.", default=41)
+    parser.add_argument("--untrained_d_ca", action = "store_true")
+    parser.add_argument("--substitute_type_d_ca", type = str, help="Type of approach to use for substitution", choices=["ALR", "None"], default="None")
+    parser.add_argument("--substitute_model_path_d_ca", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = None)
+
     # Decoding related args
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
