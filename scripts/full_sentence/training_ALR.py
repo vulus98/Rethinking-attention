@@ -429,7 +429,12 @@ def collate_batch_decoder_ca(batch):
     # print(outputs.shape)
     # print(masks.shape)
     
-
+    # Pad to fixed length
+    inputs_enc = torch.cat([inputs_enc, torch.zeros(pad_shape(inputs_enc))], dim = 1).to(device)
+    inputs_dec = torch.cat([inputs_dec, torch.zeros(pad_shape(inputs_dec))], dim = 1).to(device)
+    outputs = torch.cat([outputs, torch.zeros(pad_shape(outputs))], dim = 1).to(device)
+    src_masks = torch.cat([src_masks, torch.zeros(pad_shape(src_masks, masks = True), dtype=torch.bool)], dim = 1).to(device)
+    trg_masks = torch.cat([trg_masks, torch.zeros(pad_shape(trg_masks, masks = True), dtype=torch.bool)], dim = 1).to(device)
     # Reshape concatenating the embeddings for each sentence
     src_masks = torch.repeat_interleave(src_masks, inputs_enc.shape[-1] ,dim=1)
     trg_masks = torch.repeat_interleave(trg_masks, inputs_dec.shape[-1] ,dim=1)
