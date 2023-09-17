@@ -7,7 +7,7 @@ if [ $# == 0 ]; then
     echo "<architecture_name> in [ FFNetwork_L,FFNetwork_M,  FFNetwork_XL,  FFNetwork_XS,  FFNetwork_S]"
     echo "<att_replacement> in encoder,  set it if the layer you want to train is part of the encoder"
     echo -e "\t\t\t [ FFNetwork_decoder_L, FFNetwork_decoder_M,  FFNetwork_decoder_XL, FFNetwork_decoder_XS, FFNetwork_decoder_S]"
-    echo "<att_replacement> in decoder,  set it if the layer you want to train is part of the encoder"
+    echo "<att_replacement> in decoder,  set it if the layer you want to train is part of the self decoder"
     echo -e "\t\t\t [ FFNetwork_cross_decoder_L, FFNetwork_cross_decoder_M,  FFNetwork_cross_decoder_XL, FFNetwork_cross_decoder_XS, FFNetwork_cross_decoder_S]"
     echo "<att_replacement> in decoder_ca,  set it if the layer you want to train is part of the cross decoder"
     exit

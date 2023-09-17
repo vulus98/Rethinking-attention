@@ -14,8 +14,7 @@ from models.definitions.transformer_model import Transformer
 from utils.data_utils import get_data_loaders, get_masks_and_count_tokens, get_src_and_trg_batches, DatasetType, LanguageDirection
 from utils.constants import *
 from utils.full_sentence_utils import mha_to_mha2
-sum_k = 0
-sum_q = 0
+
 """
 B = batch size
 S = sentence length
@@ -81,15 +80,13 @@ def extract_input_output(training_config):
         max_len_train=MAX_LEN)
     
     mha_to_mha2(transformer, attention_type = "encoder")
-    mha_to_mha2(transformer, attention_type = "decoder_self")
-    mha_to_mha2(transformer, attention_type = "decoder_cross")
+    mha_to_mha2(transformer, attention_type = "decoder")
+    mha_to_mha2(transformer, attention_type = "decoder_ca")
     
     transformer.eval()
 
     def getf(i, suffix, output_path):
         def write_input_output(model, input, output):
-            global sum_k
-            global sum_q
             # input is a tuple  (queries, keys, values, mask)
             # mask is ignored, queries, keys and values are stored separately
             # In self-attention queries = keys = values 
@@ -101,9 +98,7 @@ def extract_input_output(training_config):
             in_filename_k = f"{output_path}/{prefix}_layer{i}_k_inputs_{suffix}"
             in_filename_v = f"{output_path}/{prefix}_layer{i}_v_inputs_{suffix}"
             out_filename = f"{output_path}/{prefix}_layer{i}_outputs_{suffix}"
-            if (output_path.split("/")[-1] == "decoder_cross" and suffix == "train"):
-                sum_q += q.shape[0]
-                sum_k += k.shape[0]
+
             # ad-hoc appending to the same file
             with open(in_filename_q, 'ab') as f:
                 np.save(f, q)
@@ -178,7 +173,7 @@ if __name__ == "__main__":
 
     # Data related args
     parser.add_argument("--dataset_name", choices=[el.name for el in DatasetType], help='which dataset to use for training', default=DatasetType.IWSLT.name)
-    parser.add_argument("--language_direction", choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.G2E.name)
+    parser.add_argument("--language_direction", choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.de_en.name)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
 
     # Logging/debugging related (helps a lot with experimentation)
@@ -197,5 +192,3 @@ if __name__ == "__main__":
     output_path_decoder_self = os.path.join(training_config["output_path"], "decoder_self")
     output_path_decoder_cross = os.path.join(training_config["output_path"], "decoder_cross")    
     extract_input_output(training_config)
-    print(f"sum_q: {sum_q}")
-    print(f"sum_k: {sum_k}")

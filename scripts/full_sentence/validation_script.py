@@ -113,7 +113,7 @@ if __name__ == "__main__":
 
     # Keep these 2 in sync with the model you pick via model_name
     parser.add_argument("--dataset_name", type=str, choices=['IWSLT', 'WMT14'], help='which dataset to use for training', default=DatasetType.IWSLT.name)
-    parser.add_argument("--language_direction", type=str, choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.G2E.name)
+    parser.add_argument("--language_direction", type=str, choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.de_en.name)
 
     # Cache files and datasets are downloaded here during training, keep them in sync for speed
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
@@ -123,14 +123,14 @@ if __name__ == "__main__":
     parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FFNetwork_L", default = "FFNetwork_L")
     parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = None)
     parser.add_argument("--layers", nargs='+',type = int ,help = "List of layers to substitute. If layer is not specified, all layers are substituted")
-    parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default=41)
+    parser.add_argument("--epoch", type = int, help="Epoch checkpoint to use.", default = 21)
     parser.add_argument("--untrained", action = "store_true")
     parser.add_argument("--substitute_type", type = str, help="Type of approach to use for substitution", choices=["ALR", "ELR", "ALRR", "ALSR", "None"], default="None")
     
     # Params for decoder substitution
     parser.add_argument("--substitute_class_d", type=str, help="class that substitutes attention e.g. FFNetwork_L", default="None")
     parser.add_argument("--layers_d", nargs='+',type = int ,help = "List of layers to substitute. If layer is not specified, all layers are substituted")
-    parser.add_argument("--epoch_d", type = int, help="Epoch checkpoint to use.", default=41)
+    parser.add_argument("--epoch_d", type = int, help="Epoch checkpoint to use.", default=21)
     parser.add_argument("--untrained_d", action = "store_true")
     parser.add_argument("--substitute_type_d", type = str, help="Type of approach to use for substitution", choices=["ALR", "None"], default="None")
     parser.add_argument("--substitute_model_path_d", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = None)
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     # Params for decoder self attention substitution
     parser.add_argument("--substitute_class_d_ca", type=str, help="class that substitutes attention e.g. FFNetwork_cross_decoder_L", default="None")
     parser.add_argument("--layers_d_ca", nargs='+',type = int ,help = "List of layers to substitute. If layer is not specified, all layers are substituted")
-    parser.add_argument("--epoch_d_ca", type = int, help="Epoch checkpoint to use.", default=41)
+    parser.add_argument("--epoch_d_ca", type = int, help="Epoch checkpoint to use.", default=21)
     parser.add_argument("--untrained_d_ca", action = "store_true")
     parser.add_argument("--substitute_type_d_ca", type = str, help="Type of approach to use for substitution", choices=["ALR", "None"], default="None")
     parser.add_argument("--substitute_model_path_d_ca", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth", default = None)

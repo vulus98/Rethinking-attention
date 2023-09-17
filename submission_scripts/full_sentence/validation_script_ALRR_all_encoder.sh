@@ -8,7 +8,7 @@ if [ $# == 0 ]; then
     echo "modify the parameter epoch as you need in the script"
     exit
 fi
-epoch=41
+epoch=21
 ./submission_scripts/utils/create_folder_outputs.sh ALRR $1
 
 # for i in {0..5}; do

@@ -196,7 +196,6 @@ def train_transformer(training_config):
     # Save the latest transformer in the binaries directory
     model_name = f"Transformer_{training_config['substitute_type']}_{training_config['substitute_class']}_{training_config['num_of_epochs']}.pth"
     torch.save(utils.get_training_state(training_config, custom_lr_optimizer.current_step_number, baseline_transformer), os.path.join(BINARIES_PATH, model_name))
-    bleu_score = utils.calculate_bleu_score(baseline_transformer, val_token_ids_loader, trg_field_processor)
 
 if __name__ == "__main__":
     #
@@ -208,19 +207,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # According to the paper I infered that the baseline was trained for ~19 epochs on the WMT-14 dataset and I got
     # nice returns up to epoch ~20 on IWSLT as well (nice round number)
-    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=20)
+    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=10)
     # You should adjust this for your particular machine (I have RTX 2080 with 8 GBs of VRAM so 1500 fits nicely!)
     parser.add_argument("--batch_size", type=int, help="target number of tokens in a src/trg batch", default=1500)
 
     # Data related args
     parser.add_argument("--dataset_name", choices=[el.name for el in DatasetType], help='which dataset to use for training', default=DatasetType.IWSLT.name)
-    parser.add_argument("--language_direction", choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.G2E.name)
+    parser.add_argument("--language_direction", choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.de_en.name)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_DIR_PATH)
     parser.add_argument("--model_name", type=str, help="transformer model name", default=r'Transformer_None_None_20.pth')
 
     # Logging/debugging/checkpoint related (helps a lot with experimentation)
     parser.add_argument("--console_log_freq", type=int, help="log to output console (batch) freq", default=10)
-    parser.add_argument("--checkpoint_freq", type=int, help="checkpoint model saving (epoch) freq", default=5)
+    parser.add_argument("--checkpoint_freq", type=int, help="checkpoint model saving (epoch) freq", default=20)
     parser.add_argument("--start_point", type=int, help="checkpoint model (epoch) where to resume training from", default=0)
     parser.add_argument("--substitute_class", type=str, help="class that substitutes attention e.g. FFNetwork_L", choices=["FFNetwork_XS", "FFNetwork_S", "FFNetwork_M", "FFNetwork_L", "FFNetwork_XL",],  default="None")
     parser.add_argument("--substitute_model_path", type=str, help="path to the substitue of attention. The folder should contain 6 subfolders one for each layer. Inside the FF checkpoints are stored with name: ff_network_{epoch}_layer_{layer}.pth")

@@ -195,7 +195,7 @@ def collate_batch(batch):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=41)
+    parser.add_argument("--num_of_epochs", type=int, help="number of training epochs", default=21)
     parser.add_argument("--dataset_path", type=str, help='download dataset to this path', default=DATA_PATH)
     parser.add_argument("--model_dimension", type=str, help='embedding size', default=128)
     parser.add_argument("--batch_size", type=str, help='batch_size', default=2000)
@@ -203,7 +203,7 @@ if __name__ == "__main__":
     # Params to set when running the script
     parser.add_argument("--num_of_curr_trained_layer", type=str, help='num_of_curr_trained_layer', default=5)
     parser.add_argument("--substitute_class", type = str, help="name of the FF to train defined in models/definitions/ALR.py", required=True)
-    parser.add_argument("--language_direction", choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.G2E.name)
+    parser.add_argument("--language_direction", choices=[el.name for el in LanguageDirection], help='which direction to translate', default=LanguageDirection.de_en.name)
     args = parser.parse_args()
     # Wrapping training configuration into a dictionary
     training_config = dict()

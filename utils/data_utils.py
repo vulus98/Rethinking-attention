@@ -9,7 +9,7 @@ from torchtext.data.utils import interleave_keys
 #from torchtext import datasets
 from datasets import load_dataset
 import spacy
-
+import sys
 
 from .constants import BOS_TOKEN, EOS_TOKEN, MAX_LEN, PAD_TOKEN, DATA_DIR_PATH
 
@@ -20,8 +20,10 @@ class DatasetType(enum.Enum):
 
 
 class LanguageDirection(enum.Enum):
-    E2G = 0,
-    G2E = 1
+    en_fr = 0,
+    fr_en = 1,
+    en_de = 2,
+    de_en = 3
 
 
 #
@@ -71,7 +73,8 @@ class FastTranslationDataset(Dataset):
 
         # Print relevant information about the dataset (parsing the cache file name)
         filename_parts = os.path.split(cache_path)[1].split('_')
-        src_language, trg_language = ('English', 'German') if filename_parts[0] == 'en' else ('German', 'English')
+        language_name = {'en': 'English', 'de': 'German', 'fr': 'French'}
+        src_language, trg_language = language_name[filename_parts[0]], language_name[filename_parts[1]]
         dataset_name = 'IWSLT' if filename_parts[2] == 'iwslt' else 'WMT-14'
         dataset_type = filename_parts[3]
         print(f'{dataset_type} dataset ({dataset_name}) has {src_dataset_total_number_of_tokens} tokens in the source language ({src_language}) corpus.')
@@ -134,11 +137,13 @@ def save_cache(cache_path, dataset):
 # End of caching mechanism utilities
 #
 
+    
 
 def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, use_caching_mechanism=True, fix_length = None, max_len_train = 100):
-    german_to_english = language_direction == LanguageDirection.G2E.name
-    spacy_de = spacy.load('de_core_news_sm')
+    src_lang, trg_lang = language_direction.split('_')
+    spacy_de = spacy.load('fr_core_news_sm')
     spacy_en = spacy.load('en_core_web_sm')
+    spacy_fr = spacy.load('fr_core_news_sm')
 
     def tokenize_de(text):
         return [tok.text for tok in spacy_de.tokenizer(text)]
@@ -146,10 +151,14 @@ def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, us
     def tokenize_en(text):
         return [tok.text for tok in spacy_en.tokenizer(text)]
 
+    def tokenize_fr(text):
+        return [tok.text for tok in spacy_fr.tokenizer(text)]
+
+    tokenizers = {'en': tokenize_en, 'de': tokenize_de, 'fr': tokenize_fr}
     # batch first set to true as my transformer is expecting that format (that's consistent with the format
     # used in  computer vision), namely (B, C, H, W) -> batch size, number of channels, height and width
-    src_tokenizer = tokenize_de if german_to_english else tokenize_en
-    trg_tokenizer = tokenize_en if german_to_english else tokenize_de
+    src_tokenizer = tokenizers[src_lang]
+    trg_tokenizer = tokenizers[trg_lang]
     src_field_processor = Field(tokenize=src_tokenizer, pad_token=PAD_TOKEN, batch_first=True, fix_length = fix_length)
     trg_field_processor = Field(tokenize=trg_tokenizer, init_token=BOS_TOKEN, eos_token=EOS_TOKEN, pad_token=PAD_TOKEN, batch_first=True,fix_length = fix_length)
 
@@ -159,7 +168,7 @@ def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, us
     filter_val_test = lambda x: len(x.src) <= MAX_LEN and len(x.trg) <= MAX_LEN
 
     # Only call once the splits function it is super slow as it constantly has to redo the tokenization
-    prefix = 'de_en' if german_to_english else 'en_de'
+    prefix = language_direction
     prefix += '_iwslt' if use_iwslt else '_wmt14'
     train_cache_path = os.path.join(dataset_path, f'{prefix}_train_cache.csv')
     val_cache_path = os.path.join(dataset_path, f'{prefix}_val_cache.csv')
@@ -172,10 +181,10 @@ def get_datasets_and_vocabs(dataset_path, language_direction, use_iwslt=True, us
         # .src and .trg attributes which contain a tokenized list of strings (created by tokenize_en and tokenize_de).
         # It's that simple, we can consider our datasets as a table with 2 columns 'src' and 'trg'
         # each containing fields with tokenized strings from source and target languages
-        src_ext = '.de' if german_to_english else '.en'
-        trg_ext = '.en' if german_to_english else '.de'
+        src_ext = '.' + language_direction.split('_')[0]
+        trg_ext = '.' + language_direction.split('_')[1]
         
-        train_dataset, val_dataset, test_dataset = TabularDataset.splits(path='./data/prepared_data', train='train_de-en.csv', validation='val_de-en.csv', test='test_de-en.csv', format='csv', fields=fields, skip_header=True, filter_pred=filter_pred)
+        train_dataset, val_dataset, test_dataset = TabularDataset.splits(path='./data/prepared_data', train=f'train_{language_direction}.csv', validation=f'val_{language_direction}.csv', test=f'test_{language_direction}.csv', format='csv', fields=fields, skip_header=True, filter_pred=filter_pred)
         
         # dataset_split_fn = datasets.IWSLT.splits if use_iwslt else datasets.WMT14.splits
         #train_dataset, val_dataset, test_dataset = dataset_split_fn(
@@ -350,7 +359,7 @@ if __name__ == "__main__":
     batch_size = 8
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dataset_name = DatasetType.IWSLT.name
-    language_direction = LanguageDirection.G2E.name
+    language_direction = LanguageDirection.de_en.name
     train_token_ids_loader, val_token_ids_loader, test_token_ids_loader, src_field_processor, trg_field_processor = get_data_loaders(DATA_DIR_PATH, language_direction, dataset_name, batch_size, device)
 
     # Verify that the mask logic is correct
