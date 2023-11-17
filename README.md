@@ -12,8 +12,7 @@ of the original transformer (:link: [Vaswani et al.](https://arxiv.org/abs/1706.
   * [Train baseline transformer](#train-baseline-transformer)
   * [Intermediate data extraction](#intermediate-data-extraction)
   * [Full sentence approach](#full-sentence-approach)
-  * [Average approach](#average-approach)
-  * [Random feature appraoch](#random-feature-approach)
+
 
 ## Environment setup
 
