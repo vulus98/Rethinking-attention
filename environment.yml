@@ -1,4 +1,4 @@
-name: pytorch-transformer
+name: rethinking-attention
 channels:
   - defaults
   - pytorch
