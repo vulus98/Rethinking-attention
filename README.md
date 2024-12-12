@@ -2,9 +2,9 @@
 This repository contains the code developed for the [Rethinking attention paper](arxiv link) which got accepted at AAAI24 conference.
 In this project we tried to replace the self-attention with feed-forward networks (FFN) to evaluate the importance of attention inside the transformer.
 
-The developed code builds on top of an open-source implementation by Aleksa Godric,
-(:link: [ pytorch-original-transformer](https://github.com/gordicaleksa/pytorch-original-transformer)))
-of the original transformer (:link: [Vaswani et al.](https://arxiv.org/abs/1706.03762)). <br/>.
+The developed code builds on top of an open-source implementation by Aleksa Gordic,
+[ pytorch-original-transformer](https://github.com/gordicaleksa/pytorch-original-transformer)
+of the original transformer [Vaswani et al.](https://arxiv.org/abs/1706.03762).
 
 ## Table of Contents
   * [Environment setup](#environment-setup)
