@@ -1,5 +1,5 @@
 ## The Rethinking-attention paper official implementation (AAAI24) :computer: = :rainbow:
-This repository contains the code developed for the [Rethinking attention paper](arxiv link) which got accepted at AAAI24 conference.
+This repository contains the code developed for the [Rethinking attention paper](https://arxiv.org/abs/2311.10642) which got accepted at AAAI24 conference.
 In this project we tried to replace the self-attention with feed-forward networks (FFN) to evaluate the importance of attention inside the transformer.
 
 The developed code builds on top of an open-source implementation by Aleksa Gordic,
